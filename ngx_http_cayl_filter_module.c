@@ -22,6 +22,8 @@ static char *ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
 static ngx_int_t ngx_http_cayl_filter_init(ngx_conf_t *cf);
 
+static void ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
+static void ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_int_t ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
 
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
@@ -144,6 +146,9 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     for (cl = in; cl; cl = cl->next) {
          ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL buffer processed: %p %p %p %p %d", cl->buf->temporary, cl->buf->memory, cl->buf->in_file, cl->buf->end, ngx_buf_size(cl->buf));
+        //  ngx_http_cayl_log_buffer(r, cl->buf);
+         ngx_http_cayl_find_links(r, cl->buf);
+
          if (cl->buf->last_buf) {
              last = 1;
              break;
@@ -154,71 +159,223 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return ngx_http_next_body_filter(r, in);
     }
 
+    buf = ngx_calloc_buf(r->pool);
+    if (buf == NULL) {
+        return NGX_ERROR;
+    }
+
+    buf->pos = ctx->cayl.data;
+    buf->last = buf->pos + ctx->cayl.len;
+    buf->start = buf->pos;
+    buf->end = buf->last;
+    buf->last_buf = 1;
+    buf->memory = 1;
+
+    if (ngx_buf_size(cl->buf) == 0) {
+        cl->buf = buf;
+    } else {
+        nl = ngx_alloc_chain_link(r->pool);
+        if (nl == NULL) {
+            return NGX_ERROR;
+        }
+
+        nl->buf = buf;
+        nl->next = NULL;
+        cl->next = nl;
+
+        cl->buf->last_buf = 0;
+
+    }
     ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
       "CAYL buffer pre-changes: %p %p %p %p %d", cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end, ngx_buf_size(cl->buf));
-
-    ngx_http_cayl_insert_string(cl, cl->buf->pos + 100, r);
 
     return ngx_http_next_body_filter(r, in);
 }
 
-static ngx_int_t
-ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r)
-{
-    ngx_chain_t   *added_link, *added_link2;
-    ngx_buf_t             *buf, *buf2;
+static void
+ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
+#if (NGX_PCRE)
+    u_char            errstr[NGX_MAX_CONF_ERRSTR];
+    ngx_str_t         err;
+    ngx_str_t         pattern;
+    int               return_code, n, capture_count;
+    ngx_regex_t       *match_regex;
 
-    buf = ngx_calloc_buf(r->pool);
-    if (buf == NULL) {
-      return NGX_ERROR;
+    pattern.data = (u_char*) "href=[\"'](http[^\v()<>{}\\[\\]\"']+)['\"]";
+    pattern.len = sizeof("href=[\"'](http[^\v()<>{}\\[\\]\"']+)['\"]");
+    err.len = NGX_MAX_CONF_ERRSTR;
+    err.data = errstr;
+
+    // Assuming that we're dealing with nginx version > 0.8.25
+    ngx_regex_compile_t  rc;
+    rc.pattern = pattern;
+    rc.pool = r->pool;
+    rc.err = err;
+    rc.options = NGX_REGEX_CASELESS;
+    if (ngx_regex_compile(&rc) != NGX_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "CAYL regex error: %V", &rc.err);
+        return ;
     }
-    buf->pos = (u_char *) "DONUTS";
-    buf->end = buf->last = buf->pos + sizeof("DONUTS");
-    buf->start = buf->pos;
-    buf->memory = 1;
+    match_regex = rc.regex;
 
-buf2 = ngx_calloc_buf(r->pool);
-if (buf2 == NULL) {
-  return NGX_ERROR;
-}
-buf2->pos = pos + 1;
-buf2->end = buf2->last = pos+20;
-buf2->start = buf2->pos;
-buf2->memory = 1;
+    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "CAYL compiled regex!");
+
+    // Assuming that we're dealing with nginx version > 1.2.2 (1002002)
+    return_code = pcre_fullinfo(match_regex->code, NULL, PCRE_INFO_CAPTURECOUNT, &capture_count);
+    // return_code < 0 is an error, 0 is success
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "CAYL fullinfo result: %d",return_code);
+
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL capture count: %d",capture_count);
+
+    ngx_str_t  line;
+    ngx_str_t  m;
+    int           *captures;
+    ngx_int_t      ncaptures;
 
 
-    cl->buf->last = pos;
-    ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-      "CAYL buffer truncated: %p %p %p %p %d", cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end, ngx_buf_size(cl->buf));
+    ncaptures = (capture_count + 1) * 3; /* Size of the vector for PCRE */
+    captures = ngx_palloc(r->pool, ncaptures * sizeof(int));
+    if (captures == NULL) {
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "CAYL null captures error");
 
-    added_link = ngx_alloc_chain_link(r->pool);
-    if (added_link == NULL)
-        return NGX_ERROR;
-
-    added_link->buf = buf;
-    added_link->next = cl->next;
-    if (cl->buf->last_buf) {
-      added_link->buf->last_buf = 1;
     }
-    cl->buf->last_buf = 0;
-    cl->next = added_link;
 
-added_link2 = ngx_alloc_chain_link(r->pool);
-if (added_link2 == NULL)
-    return NGX_ERROR;
+    char *s;
+    u_char *c;
+    u_char* cur;
+    cur = buf->pos;
+    while ((c = memchr(cur,'\n', buf->last - cur))) {
 
-added_link2->buf = buf2;
-added_link2->next = added_link->next;
-if (added_link->buf->last_buf) {
-  added_link2->buf->last_buf = 1;
+        line.data = cur;
+        line.len = c - cur;
+
+        return_code = ngx_regex_exec(match_regex, &line, captures, ncaptures);
+        if (NGX_REGEX_NO_MATCHED > return_code) {
+            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                               "CAYL regex error");
+        } else if (0 == return_code) {
+            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL regex match on line - Offsets not big enough: %V", &line);
+        } else if (0 < return_code) {
+            // m.data = captures[0];
+            // m.len = captures[1] - captures[0];
+            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                            "CAYL regex match on line..: %V", &line);
+
+/* 0 and 1 define the full regexp, 2 and 3 define the first group within it */                            
+
+            ngx_log_debug7(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "CAYL regex  matches:%i, start:%d, end:%d %d %d %d %d",
+                            return_code ,  captures[0], captures[1],  captures[2], captures[3], captures[4], captures[5]  );
+
+        }
+
+        cur = c + 1;
+        if (cur >= buf->last) {
+            break;
+        }
+    }
+
+
+    // return_code = ngx_regex_exec(match_regex, &line,
+    //                              captures, ncaptures);
+    //
+    // ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    //        "CAYL regex haystack: %d : %s",line.len, s);
+    //
+    // ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    //            "CAYL regex result: %i",return_code);
+
+
+#endif
 }
-added_link->buf->last_buf = 0;
-added_link->next = added_link2;
 
+static void
+ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
 
+    u_char *c;
+    u_char* cur;
+    char *s;
 
+    cur = buf->pos;
+    while ((c = memchr(cur,'\n', buf->last - cur))) {
+        // ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        //       "CAYL buffer pos: %d %d %d", c, cur, buf->last);
+
+        s = ngx_pcalloc(r->pool, c - cur);
+        memcpy(s,cur,c - cur);
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                      "CAYL buffer: %s", s);
+        cur = c + 1;
+        if (cur >= buf->last) {
+            break;
+        }
+    }
 
 }
+
+
+// static ngx_int_t
+// ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r)
+// {
+//     ngx_chain_t   *added_link, *added_link2;
+//     ngx_buf_t             *buf, *buf2;
+//
+//     buf = ngx_calloc_buf(r->pool);
+//     if (buf == NULL) {
+//       return NGX_ERROR;
+//     }
+//     buf->pos = (u_char *) "DONUTS";
+//     buf->end = buf->last = buf->pos + sizeof("DONUTS");
+//     buf->start = buf->pos;
+//     buf->memory = 1;
+//
+// buf2 = ngx_calloc_buf(r->pool);
+// if (buf2 == NULL) {
+//   return NGX_ERROR;
+// }
+// buf2->pos = pos + 1;
+// buf2->end = buf2->last = pos+20;
+// buf2->start = buf2->pos;
+// buf2->memory = 1;
+//
+//
+//     cl->buf->last = pos;
+//     ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+//       "CAYL buffer truncated: %p %p %p %p %d", cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end, ngx_buf_size(cl->buf));
+//
+//     added_link = ngx_alloc_chain_link(r->pool);
+//     if (added_link == NULL)
+//         return NGX_ERROR;
+//
+//     added_link->buf = buf;
+//     added_link->next = cl->next;
+//     if (cl->buf->last_buf) {
+//       added_link->buf->last_buf = 1;
+//     }
+//     cl->buf->last_buf = 0;
+//     cl->next = added_link;
+//
+// added_link2 = ngx_alloc_chain_link(r->pool);
+// if (added_link2 == NULL)
+//     return NGX_ERROR;
+//
+// added_link2->buf = buf2;
+// added_link2->next = added_link->next;
+// if (added_link->buf->last_buf) {
+//   added_link2->buf->last_buf = 1;
+// }
+// added_link->buf->last_buf = 0;
+// added_link->next = added_link2;
+//
+//
+//
+//
+// }
 
 
 static char *
