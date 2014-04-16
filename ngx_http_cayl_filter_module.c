@@ -14,6 +14,14 @@ typedef struct {
     ngx_str_t                           cayl;
 } ngx_http_cayl_ctx_t;
 
+typedef struct {
+    int        count;            /* Number of matching insertion positions and
+                                    urls.  */
+    int        *insert_pos;      /* Array - positions within the buffer where
+                                    additional attributes should in inserted
+                                    for matching hrefs */
+    ngx_str_t  *url;             /* Array - urls within the buffer. */
+} ngx_http_cayl_matches_t;
 
 static char *ngx_http_cayl_filter(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
@@ -23,7 +31,7 @@ static char *ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf,
 static ngx_int_t ngx_http_cayl_filter_init(ngx_conf_t *cf);
 
 static void ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
-static void ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
+static ngx_http_cayl_matches_t *ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_int_t ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
 
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
@@ -142,12 +150,20 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     last = 0;
+    ngx_http_cayl_matches_t *matches;
 
     for (cl = in; cl; cl = cl->next) {
-         ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "CAYL buffer processed: %p %p %p %p %d", cl->buf->temporary, cl->buf->memory, cl->buf->in_file, cl->buf->end, ngx_buf_size(cl->buf));
-        //  ngx_http_cayl_log_buffer(r, cl->buf);
-         ngx_http_cayl_find_links(r, cl->buf);
+        //  ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        //        "CAYL buffer processed: %p %p %p %p %d", cl->buf->temporary, cl->buf->memory, cl->buf->in_file, cl->buf->end, ngx_buf_size(cl->buf));
+        matches = ngx_http_cayl_find_links(r, cl->buf);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                 "CAYL buffer match count: %d", (matches) ? matches->count : 0);
+        if (matches && matches->count) {
+            for (int i = 0; i < matches->count; i++) {
+                ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                    "CAYL buffer match [%d]: %d, %d %V", i, matches->insert_pos[i], matches->url[i].len, &matches->url[i]);
+            }
+        }
 
          if (cl->buf->last_buf) {
              last = 1;
@@ -192,43 +208,42 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     return ngx_http_next_body_filter(r, in);
 }
 
-static void
+static ngx_http_cayl_matches_t *
 ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
 #if (NGX_PCRE)
-    u_char            errstr[NGX_MAX_CONF_ERRSTR];
-    ngx_str_t         err;
-    ngx_str_t         pattern;
-    int               return_code, n, capture_count;
-    ngx_regex_t       *match_regex;
+    ngx_http_cayl_matches_t    *matches;
+    u_char                    errstr[NGX_MAX_CONF_ERRSTR];
+    ngx_str_t                 err;
+    ngx_str_t                 pattern;
+    int                       rc, n, capture_count;
+    ngx_regex_t               *match_regex;
 
     pattern.data = (u_char*) "href=[\"'](http[^\v()<>{}\\[\\]\"']+)['\"]";
-    pattern.len = sizeof("href=[\"'](http[^\v()<>{}\\[\\]\"']+)['\"]");
+    pattern.len = sizeof(pattern.data);
     err.len = NGX_MAX_CONF_ERRSTR;
     err.data = errstr;
 
     // Assuming that we're dealing with nginx version > 0.8.25
-    ngx_regex_compile_t  rc;
-    rc.pattern = pattern;
-    rc.pool = r->pool;
-    rc.err = err;
-    rc.options = NGX_REGEX_CASELESS;
-    if (ngx_regex_compile(&rc) != NGX_OK) {
+    ngx_regex_compile_t  regex_compile;
+    regex_compile.pattern = pattern;
+    regex_compile.pool = r->pool;
+    regex_compile.err = err;
+    regex_compile.options = NGX_REGEX_CASELESS;
+    if (ngx_regex_compile(&regex_compile) != NGX_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "CAYL regex error: %V", &rc.err);
-        return ;
+                       "CAYL regex error: %V", &regex_compile.err);
+        return NULL;
     }
-    match_regex = rc.regex;
-
-    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "CAYL compiled regex!");
+    match_regex = regex_compile.regex;
 
     // Assuming that we're dealing with nginx version > 1.2.2 (1002002)
-    return_code = pcre_fullinfo(match_regex->code, NULL, PCRE_INFO_CAPTURECOUNT, &capture_count);
-    // return_code < 0 is an error, 0 is success
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                   "CAYL fullinfo result: %d",return_code);
-
-    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "CAYL capture count: %d",capture_count);
+    rc = pcre_fullinfo(match_regex->code, NULL, PCRE_INFO_CAPTURECOUNT, &capture_count);
+    /* rc < 0 is an error, 0 is success */
+    if (rc < 0) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "CAYL pcre_fullinfo error: %d",rc);
+        return NULL;
+    }
 
     ngx_str_t  line;
     ngx_str_t  m;
@@ -247,49 +262,81 @@ ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
     char *s;
     u_char *c;
     u_char* cur;
+
+    int MATCHES_CHUNK_SIZE = 2;
+    matches = ngx_palloc(r->pool,sizeof(ngx_http_cayl_matches_t));
+    if (!matches) {
+        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "CAYL allocation error : matches");
+    }
+    matches->count = 0;
+    matches->insert_pos = NULL;
+    matches->url = NULL;
+
+
     cur = buf->pos;
     while ((c = memchr(cur,'\n', buf->last - cur))) {
 
         line.data = cur;
         line.len = c - cur;
 
-        return_code = ngx_regex_exec(match_regex, &line, captures, ncaptures);
-        if (NGX_REGEX_NO_MATCHED > return_code) {
-            ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                               "CAYL regex error");
-        } else if (0 == return_code) {
-            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "CAYL regex match on line - Offsets not big enough: %V", &line);
-        } else if (0 < return_code) {
-            // m.data = captures[0];
-            // m.len = captures[1] - captures[0];
-            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                            "CAYL regex match on line..: %V", &line);
+        do {
+            rc = ngx_regex_exec(match_regex, &line, captures, ncaptures);
+            if (rc < NGX_REGEX_NO_MATCHED) {
+                ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                    "CAYL regex error (%d) : %V", rc, &line);
+                break;
+            } else if (rc == 0) {
+                ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "CAYL regex error (offsets not big enough) : %V", &line);
+                break;
+            } else if (rc > 0) {
+                /* captures[0] and captures[1] are for the capture group matching
+                 * the full regex. captures[2] and captures[3] are for the first
+                 * capture group within it */
+                m.data = line.data + captures[2];
+                m.len = captures[3] - captures[2];
+                // ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                //     "CAYL regex match (%V): %V", &m, &line);
 
-/* 0 and 1 define the full regexp, 2 and 3 define the first group within it */                            
+                if (!matches->insert_pos || !matches->url) {
+                    matches->insert_pos = ngx_palloc(r->pool,
+                                                     sizeof(int) * MATCHES_CHUNK_SIZE);
+                    matches->url = ngx_palloc(r->pool,
+                                              sizeof(ngx_str_t) * MATCHES_CHUNK_SIZE);
+                } else if ((matches->count % MATCHES_CHUNK_SIZE) == 0) {
+                    int              *t1 = matches->insert_pos;
+                    ngx_str_t        *t2 = matches->url;
+                    matches->insert_pos = ngx_palloc(r->pool,
+                                     sizeof(int) * (MATCHES_CHUNK_SIZE + matches->count));
+                    matches->url = ngx_palloc(r->pool,
+                                     sizeof(ngx_str_t) * (MATCHES_CHUNK_SIZE + matches->count));
+                    memcpy(matches->insert_pos,t1,sizeof(int) * matches->count);
+                    memcpy(matches->url,t2,sizeof(ngx_str_t) * matches->count);
+                }
+                /* Insertion point is the  beginning of the current regex match,
+                 * plus the difference by which the line is offset from the
+                 * beginning of the buffer */
+                matches->insert_pos[matches->count] = captures[0] + line.data - buf->pos;
+                matches->url[matches->count].len = m.len;
+                matches->url[matches->count].data = ngx_palloc(r->pool,
+                                                    sizeof(u_char) * m.len);
+                memcpy(matches->url[matches->count].data, m.data, m.len);
+                matches->count++;
 
-            ngx_log_debug7(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "CAYL regex  matches:%i, start:%d, end:%d %d %d %d %d",
-                            return_code ,  captures[0], captures[1],  captures[2], captures[3], captures[4], captures[5]  );
-
-        }
+                /* Move the pointer for the line to the end of the string that
+                 * matched the regex */
+                line.data = line.data + captures[1];
+                line.len = line.len - captures[1];
+            }
+        } while ((rc > 0) && (line.len > 0));
 
         cur = c + 1;
         if (cur >= buf->last) {
             break;
         }
     }
-
-
-    // return_code = ngx_regex_exec(match_regex, &line,
-    //                              captures, ncaptures);
-    //
-    // ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-    //        "CAYL regex haystack: %d : %s",line.len, s);
-    //
-    // ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-    //            "CAYL regex result: %i",return_code);
-
+    return matches;
 
 #endif
 }
