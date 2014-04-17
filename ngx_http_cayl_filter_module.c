@@ -1,6 +1,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include <nginx.h>
 
 
 typedef struct {
@@ -33,6 +34,8 @@ static ngx_int_t ngx_http_cayl_filter_init(ngx_conf_t *cf);
 static void ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_http_cayl_matches_t *ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_int_t ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
+static void ngx_http_cayl_insert_attributes(ngx_buf_t *dest, ngx_buf_t *src, ngx_http_cayl_matches_t *matches);
+static ngx_str_t ngx_http_cayl_get_attribute(ngx_str_t url);
 
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
 
@@ -136,12 +139,13 @@ ngx_http_cayl_header_filter(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
+    ngx_log_t             *log = r->connection->log;
     ngx_buf_t             *buf;
     ngx_uint_t             last;
     ngx_chain_t           *cl, *nl;
     ngx_http_cayl_ctx_t *ctx;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0,
                    "http cayl body filter");
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_cayl_filter_module);
@@ -153,59 +157,108 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_http_cayl_matches_t *matches;
 
     for (cl = in; cl; cl = cl->next) {
-        //  ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        //  ngx_log_debug5(NGX_LOG_DEBUG_HTTP, log, 0,
         //        "CAYL buffer processed: %p %p %p %p %d", cl->buf->temporary, cl->buf->memory, cl->buf->in_file, cl->buf->end, ngx_buf_size(cl->buf));
         matches = ngx_http_cayl_find_links(r, cl->buf);
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0,
                  "CAYL buffer match count: %d", (matches) ? matches->count : 0);
         if (matches && matches->count) {
             for (int i = 0; i < matches->count; i++) {
-                ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
                     "CAYL buffer match [%d]: %d, %d %V", i, matches->insert_pos[i], matches->url[i].len, &matches->url[i]);
             }
+
+            /* There are some things to change, so create a new buffer within
+             * which we'll make the changes. Then we'll remove the current
+             * buffer and replace it with the new one */
+            buf = ngx_calloc_buf(r->pool);
+            if (buf == NULL) {
+                ngx_log_error(NGX_LOG_ERR, log, 0,
+                              "[cayl] ngx_http_cayl_body_filter error.");
+                return NGX_ERROR;
+            }
+
+            /* The new buffer needs to be bigger, since we're adding HTML
+             * attributes */
+            int CAYL_ATTRIBUTES_MAX_LENGTH = 200 * sizeof(u_char);
+            int buf_size = (CAYL_ATTRIBUTES_MAX_LENGTH  * matches->count)
+                            + cl->buf->last - cl->buf->pos;
+            buf->pos = ngx_palloc(r->pool,buf_size);
+            buf->start = buf->pos;
+            buf->end = buf->pos + buf_size;
+            buf->last = buf->pos;
+
+            /* Copy the old buffer to the new one, inserting attributes as we go */
+            ngx_http_cayl_insert_attributes(buf,cl->buf,matches);
+            buf->memory = 1;
+            buf->last_buf = cl->buf->last_buf;
+            cl->buf->last_buf = 0;
+
+            /* Zero out the old buffer */
+ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
+    "CAYL old buffer pos/last start/end : %i/%i %i/%i",
+    cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end);
+            cl->buf->last = cl->buf->pos + 1;
+            // cl->buf->start = cl->buf->last;
+
+            /* Create a new link to add to the buffer chain */
+            nl = ngx_alloc_chain_link(r->pool);
+            if (nl == NULL) {
+                ngx_log_error(NGX_LOG_ERR, log, 0,
+                              "[cayl] ngx_http_cayl_body_filter error.");
+                return NGX_ERROR;
+            }
+            nl->buf = buf;
+            nl->next = cl->next;
+            cl->next = nl;
+
+
+
+            cl = nl; /* Otherwise our loop will process the buffer just added */
         }
-
-         if (cl->buf->last_buf) {
-             last = 1;
-             break;
-         }
     }
-
-    if (!last) {
-        return ngx_http_next_body_filter(r, in);
-    }
-
-    buf = ngx_calloc_buf(r->pool);
-    if (buf == NULL) {
-        return NGX_ERROR;
-    }
-
-    buf->pos = ctx->cayl.data;
-    buf->last = buf->pos + ctx->cayl.len;
-    buf->start = buf->pos;
-    buf->end = buf->last;
-    buf->last_buf = 1;
-    buf->memory = 1;
-
-    if (ngx_buf_size(cl->buf) == 0) {
-        cl->buf = buf;
-    } else {
-        nl = ngx_alloc_chain_link(r->pool);
-        if (nl == NULL) {
-            return NGX_ERROR;
-        }
-
-        nl->buf = buf;
-        nl->next = NULL;
-        cl->next = nl;
-
-        cl->buf->last_buf = 0;
-
-    }
-    ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-      "CAYL buffer pre-changes: %p %p %p %p %d", cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end, ngx_buf_size(cl->buf));
 
     return ngx_http_next_body_filter(r, in);
+}
+
+/*
+ * Copy source buffer to destination buffer, while inserting CAYL HTML attributes
+ * for each of the URLs identified in matches struct.
+ */
+static void
+ngx_http_cayl_insert_attributes(ngx_buf_t *dest,
+                                ngx_buf_t *src,
+                                ngx_http_cayl_matches_t *matches) {
+
+    u_char *dest_pos = dest->pos;
+    u_char *cur_pos = src->pos;
+    int copy_size;
+    ngx_str_t insertion;
+
+    for (int i = 0; i < matches->count; i++) {
+        /* Copy the data up to the insertion point for the next match */
+        copy_size = matches->insert_pos[i] + src->pos - cur_pos;
+        memcpy(dest_pos, cur_pos, copy_size);
+        dest_pos += copy_size;
+        cur_pos += copy_size;
+
+        /* Get the attributes to be inserted, and insert them */
+        insertion = ngx_http_cayl_get_attribute(matches->url[i]);
+        memcpy(dest_pos, insertion.data, insertion.len);
+        dest_pos += insertion.len;
+    }
+
+    /* Add the text after the last match */
+    if (src->last > cur_pos) {
+        memcpy(dest_pos, cur_pos, src->last - cur_pos);
+    }
+    dest->last = dest_pos + (src->last - cur_pos);
+}
+
+static ngx_str_t
+ngx_http_cayl_get_attribute(ngx_str_t url) {
+    ngx_str_t s = ngx_string("data-cache='/cayl/arglebage' data-cayl-behavior='up hover:2' ");
+    return s;
 }
 
 static ngx_http_cayl_matches_t *
