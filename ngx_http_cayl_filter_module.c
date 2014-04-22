@@ -90,7 +90,6 @@ ngx_module_t  ngx_http_cayl_filter_module = {
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 static ngx_http_output_body_filter_pt   ngx_http_next_body_filter;
 
-
 static ngx_int_t
 ngx_http_cayl_header_filter(ngx_http_request_t *r)
 {
@@ -124,6 +123,7 @@ ngx_http_cayl_header_filter(ngx_http_request_t *r)
 
     ngx_http_set_ctx(r, ctx, ngx_http_cayl_filter_module);
 
+    // TODO: Determine what this is required
     if (r->headers_out.content_length_n != -1) {
         r->headers_out.content_length_n += ctx->cayl.len;
     }
@@ -200,9 +200,9 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             // cl->buf->last_buf = 0;
 
             /* Zero out the old buffer */
-ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
-    "CAYL old buffer pos/last start/end : %i/%i %i/%i",
-    cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end);
+            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
+                "CAYL old buffer pos/last start/end : %i/%i %i/%i",
+                cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end);
             // cl->buf->last = cl->buf->pos + 1;
             // cl->buf->start = cl->buf->last;
 
@@ -440,66 +440,6 @@ ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
     }
 
 }
-
-
-// static ngx_int_t
-// ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r)
-// {
-//     ngx_chain_t   *added_link, *added_link2;
-//     ngx_buf_t             *buf, *buf2;
-//
-//     buf = ngx_calloc_buf(r->pool);
-//     if (buf == NULL) {
-//       return NGX_ERROR;
-//     }
-//     buf->pos = (u_char *) "DONUTS";
-//     buf->end = buf->last = buf->pos + sizeof("DONUTS");
-//     buf->start = buf->pos;
-//     buf->memory = 1;
-//
-// buf2 = ngx_calloc_buf(r->pool);
-// if (buf2 == NULL) {
-//   return NGX_ERROR;
-// }
-// buf2->pos = pos + 1;
-// buf2->end = buf2->last = pos+20;
-// buf2->start = buf2->pos;
-// buf2->memory = 1;
-//
-//
-//     cl->buf->last = pos;
-//     ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-//       "CAYL buffer truncated: %p %p %p %p %d", cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end, ngx_buf_size(cl->buf));
-//
-//     added_link = ngx_alloc_chain_link(r->pool);
-//     if (added_link == NULL)
-//         return NGX_ERROR;
-//
-//     added_link->buf = buf;
-//     added_link->next = cl->next;
-//     if (cl->buf->last_buf) {
-//       added_link->buf->last_buf = 1;
-//     }
-//     cl->buf->last_buf = 0;
-//     cl->next = added_link;
-//
-// added_link2 = ngx_alloc_chain_link(r->pool);
-// if (added_link2 == NULL)
-//     return NGX_ERROR;
-//
-// added_link2->buf = buf2;
-// added_link2->next = added_link->next;
-// if (added_link->buf->last_buf) {
-//   added_link2->buf->last_buf = 1;
-// }
-// added_link->buf->last_buf = 0;
-// added_link->next = added_link2;
-//
-//
-//
-//
-// }
-
 
 static char *
 ngx_http_cayl_filter(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
