@@ -8,7 +8,8 @@
 typedef struct {
     ngx_hash_t                          types;
     ngx_array_t                        *types_keys;
-    ngx_http_complex_value_t           *variable;
+    ngx_http_complex_value_t           *variable; //TODO: Remove this
+    ngx_str_t                           db;
     ngx_str_t                           behavior_up;
     ngx_str_t                           behavior_down;
     ngx_uint_t                          hover_delay_up;
@@ -50,6 +51,13 @@ static ngx_command_t  ngx_http_cayl_filter_commands[] = {
       ngx_http_cayl_filter,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
+      NULL },
+
+    { ngx_string("cayl_db"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, db),
       NULL },
 
     { ngx_string("cayl_types"),
@@ -318,8 +326,18 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
     int date;
     int status;
 
+    ngx_http_cayl_loc_conf_t  *cayl_config;
+    cayl_config = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
+    if (!cayl_config) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+          "[CAYL] ngx_http_cayl_get_attribute - No configuration");
+        return NULL;
+    }
 
-    sqlite_rc = sqlite3_open((char *) "/Users/jlicht/Documents/pod/Development/cayl/nginx/robustness_nginx/cayl.db", &sqlite_handle);
+    char *db = ngx_palloc(r->pool,cayl_config->db.len * sizeof(char));
+    strncpy(db, (char *)cayl_config->db.data,cayl_config->db.len);
+
+    sqlite_rc = sqlite3_open(db, &sqlite_handle);
     if (sqlite_rc) {
         sqlite3_close(sqlite_handle);
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -382,16 +400,6 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
     if (sqlite_rc != SQLITE_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL error closing sqlite database (%d)", sqlite_rc);
-    }
-    ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-        "CAYL sqlite results for url: (%V) %s,%d,%d", &url, location, date, status);
-
-    ngx_http_cayl_loc_conf_t  *cayl_config;
-    cayl_config = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
-    if (!cayl_config) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-          "[CAYL] ngx_http_cayl_get_attribute - No configuration");
-        return NULL;
     }
 
     cayl_options_t *options = ngx_http_cayl_build_options(r,cayl_config);
@@ -625,6 +633,7 @@ ngx_http_cayl_create_loc_conf(ngx_conf_t *cf)
         return NULL;
     }
 
+    conf->db.data = NULL;
     conf->behavior_up.data = NULL;
     conf->behavior_down.data = NULL;
     conf->hover_delay_up = NGX_CONF_UNSET_UINT;
@@ -656,8 +665,9 @@ ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
        return NGX_CONF_ERROR;
     }
 
-    ngx_conf_merge_str_value(conf->behavior_up,    prev->behavior_up,"none");
-    ngx_conf_merge_str_value(conf->behavior_down,  prev->behavior_down,"popup");
+    ngx_conf_merge_str_value(conf->db,                   prev->db,"cayl.db");
+    ngx_conf_merge_str_value(conf->behavior_up,          prev->behavior_up,"none");
+    ngx_conf_merge_str_value(conf->behavior_down,        prev->behavior_down,"popup");
     ngx_conf_merge_uint_value(conf->hover_delay_up,      prev->hover_delay_up,5);
     ngx_conf_merge_uint_value(conf->hover_delay_down,    prev->hover_delay_down,2);
 
