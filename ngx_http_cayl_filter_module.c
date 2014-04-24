@@ -2,12 +2,17 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 #include <nginx.h>
-
+#include <sqlite3.h>
+#include "cayl_utils.h"
 
 typedef struct {
     ngx_hash_t                          types;
     ngx_array_t                        *types_keys;
     ngx_http_complex_value_t           *variable;
+    ngx_str_t                           behavior_up;
+    ngx_str_t                           behavior_down;
+    ngx_uint_t                          hover_delay_up;
+    ngx_uint_t                          hover_delay_down;
 } ngx_http_cayl_loc_conf_t;
 
 
@@ -34,13 +39,14 @@ static ngx_int_t ngx_http_cayl_filter_init(ngx_conf_t *cf);
 static void ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_http_cayl_matches_t *ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_int_t ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
+static cayl_options_t *ngx_http_cayl_build_options(ngx_http_request_t *r, ngx_http_cayl_loc_conf_t *config);
 static void ngx_http_cayl_insert_attributes(ngx_http_request_t *r, ngx_buf_t *buf, ngx_http_cayl_matches_t *matches);
-static ngx_str_t ngx_http_cayl_get_attribute(ngx_str_t url);
+static ngx_str_t *ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url);
 
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
 
     { ngx_string("cayl"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
       ngx_http_cayl_filter,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
@@ -52,6 +58,35 @@ static ngx_command_t  ngx_http_cayl_filter_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_cayl_loc_conf_t, types_keys),
       &ngx_http_html_default_types[0] },
+
+    { ngx_string("cayl_behavior_up"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, behavior_up),
+      NULL },
+
+    { ngx_string("cayl_behavior_down"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, behavior_down),
+      NULL },
+
+    { ngx_string("cayl_hover_delay_up"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, hover_delay_up),
+      NULL },
+
+    { ngx_string("cayl_hover_delay_down"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, hover_delay_down),
+      NULL },
+
       ngx_null_command
 };
 
@@ -117,28 +152,13 @@ ngx_http_cayl_header_filter(ngx_http_request_t *r)
        return NGX_ERROR;
     }
 
-    if (ngx_http_complex_value(r, lcf->variable, &ctx->cayl) != NGX_OK) {
-        return NGX_ERROR;
-    }
-
     ngx_http_set_ctx(r, ctx, ngx_http_cayl_filter_module);
-
-    // TODO: Determine what this is required
-    if (r->headers_out.content_length_n != -1) {
-        r->headers_out.content_length_n += ctx->cayl.len;
-    }
-
-    if (r->headers_out.content_length) {
-        r->headers_out.content_length->hash = 0;
-        r->headers_out.content_length = NULL;
-    }
-
-    ngx_http_clear_accept_ranges(r);
 
     return ngx_http_next_header_filter(r);
 }
 
-
+/* Go through the buffer chain, and annotate external URLs based on data in
+   in the cache */
 static ngx_int_t
 ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
@@ -230,6 +250,8 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
  * Update the buffer to insert CAYL HTML attributes for each of the URLs
  * identified in matches struct.
  * Returns 0 on sucess.
+ * TODO: Handle the case where the existing size of the buffer is not sufficient
+ *       to accomodate the extra data we are adding
  */
 static void
 ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
@@ -239,7 +261,7 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
     u_char *dest_pos = buf->pos;
     u_char *cur_pos, *src_pos, *last_pos, *end_pos;
     int copy_size;
-    ngx_str_t insertion;
+    ngx_str_t *insertion;
 
     cur_pos = ngx_palloc(r->pool,buf->last - buf->start);
     memcpy(cur_pos,buf->pos,buf->last - buf->start);
@@ -251,12 +273,12 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
     for (int i = 0; i < matches->count; i++) {
         /* Copy the data up to the insertion point for the next match */
         copy_size = matches->insert_pos[i] + src_pos - cur_pos;
-        insertion = ngx_http_cayl_get_attribute(matches->url[i]);
-
+        insertion = ngx_http_cayl_get_attribute(r, matches->url[i]);
         /* Make sure that we're not going to overrun the end of the buffer
          * If so, log a message, and return.
          * TODO: Handle this properly */
-        if ((cur_pos + copy_size + insertion.len) > end_pos) {
+
+        if (insertion && ((cur_pos + copy_size + insertion->len) > end_pos)) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
               "[CAYL] ngx_http_cayl_body_filter - buffer not big enough for attributes");
             return;
@@ -266,8 +288,10 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
         cur_pos += copy_size;
 
         /* Get the attributes to be inserted, and insert them */
-        memcpy(dest_pos, insertion.data, insertion.len);
-        dest_pos += insertion.len;
+        if (insertion) {
+            memcpy(dest_pos, insertion->data, insertion->len);
+            dest_pos += insertion->len;
+        }
         buf->last = dest_pos + (last_pos - cur_pos);
     }
 
@@ -278,12 +302,152 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
     buf->last = dest_pos + (last_pos - cur_pos);
 }
 
-static ngx_str_t
-ngx_http_cayl_get_attribute(ngx_str_t url) {
-    ngx_str_t s = ngx_string("data-cache='/cayl/arglebage' data-cayl-behavior='up hover:2' ");
+
+/* Return the CAYL attributes that should be added to the HREF with the given
+   target URL, based on data from the cache
+*/
+static ngx_str_t *
+ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
+
+    ngx_str_t *s;
+    ngx_int_t sqlite_rc;
+    sqlite3 *sqlite_handle;
+
+    const char *location_tmp;
+    char *location;
+    int date;
+    int status;
+
+
+    sqlite_rc = sqlite3_open((char *) "/Users/jlicht/Documents/pod/Development/cayl/nginx/robustness_nginx/cayl.db", &sqlite_handle);
+    if (sqlite_rc) {
+        sqlite3_close(sqlite_handle);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "CAYL error opening sqlite database (%d)", sqlite_rc);
+        return NULL;
+    }
+
+    sqlite3_stmt *sqlite_statement;
+    const char *query_tail;
+    char *query_template = "SELECT ca.location, ca.date, ch.status FROM cayl_cache ca, cayl_check ch WHERE ca.url = ? AND ca.id = ch.id";
+    sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
+    if (sqlite_rc != SQLITE_OK) {
+        sqlite3_close(sqlite_handle);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error creating sqlite prepared statement (%d)", sqlite_rc);
+        return NULL;
+    }
+
+    sqlite_rc = sqlite3_bind_text(sqlite_statement, 1, (char *)url.data, url.len, SQLITE_STATIC);
+    if (sqlite_rc != SQLITE_OK) {
+        sqlite3_close(sqlite_handle);
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error binding sqlite parameter: %V (%d)", url, sqlite_rc);
+        return NULL;
+    }
+
+    sqlite_rc = sqlite3_step(sqlite_statement);
+    if (sqlite_rc == SQLITE_DONE) { /* No data returned */
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "CAYL sqlite no results for url: (%V)", &url);
+        sqlite3_close(sqlite_handle);
+        return NULL;
+    } else if (sqlite_rc == SQLITE_ROW) {
+        location_tmp = (const char *) sqlite3_column_text(sqlite_statement,0);
+        /* Copy the location string, since it gets clobbered when the
+           sqlite objects are closed */
+        location = ngx_palloc(r->pool,strlen(location_tmp) * sizeof(char));
+        strncpy(location,location_tmp,strlen(location_tmp));
+
+        date = sqlite3_column_int(sqlite_statement,1);
+        status = sqlite3_column_int(sqlite_statement,2);
+        ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+            "CAYL sqlite results for url: (%V) %s,%d,%d", &url, location, date, status);
+    } else {
+        sqlite3_close(sqlite_handle);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error executing sqlite statement: (%d)", sqlite_rc);
+        return NULL;
+    }
+
+    sqlite_rc = sqlite3_finalize(sqlite_statement);
+    if (sqlite_rc != SQLITE_OK) {
+        sqlite3_close(sqlite_handle);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error finalizing statement (%d)", sqlite_rc);
+        return NULL;
+    }
+
+    sqlite_rc = sqlite3_close(sqlite_handle);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error closing sqlite database (%d)", sqlite_rc);
+    }
+    ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        "CAYL sqlite results for url: (%V) %s,%d,%d", &url, location, date, status);
+
+    ngx_http_cayl_loc_conf_t  *cayl_config;
+    cayl_config = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
+    if (!cayl_config) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+          "[CAYL] ngx_http_cayl_get_attribute - No configuration");
+        return NULL;
+    }
+
+    cayl_options_t *options = ngx_http_cayl_build_options(r,cayl_config);
+
+    s = ngx_palloc(r->pool,sizeof(ngx_str_t));
+    s->data = ngx_palloc(r->pool,CAYL_MAX_ATTRIBUTE_STRING);
+    int rc = cayl_build_attribute(options, s->data, location, status, date);
+    if (rc) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+            "CAYL error gnerating attribute string (%d)", rc);
+        return NULL;
+    }
+    s->len = strlen((const char*) s->data);
     return s;
 }
 
+static int
+ngx_http_cayl_convert_behavior_config(ngx_str_t s) {
+    if (!strncmp("cache",(const char*) s.data,s.len)) {
+        return CAYL_ACTION_CACHE;
+    } else if (!strncmp("popup",(const char*)s.data,s.len)) {
+        return CAYL_ACTION_POPUP;
+    } else if (!strncmp("hover",(const char*)s.data,s.len)) {
+        return CAYL_ACTION_HOVER;
+    } else {
+        return CAYL_ACTION_NONE;
+    }
+}
+
+/* Copy the options required to determine the appropriate behavior for each link
+   to a struct that is not nginx specific */
+static cayl_options_t *
+ngx_http_cayl_build_options(ngx_http_request_t *r, ngx_http_cayl_loc_conf_t *config) {
+
+    cayl_options_t *options;
+
+    options = ngx_palloc(r->pool,sizeof(cayl_options_t));
+    if (!options) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+          "[CAYL] ngx_http_cayl_build_options - Cannot allocate memory");
+        return NULL;
+    }
+
+    options->behavior_up = ngx_http_cayl_convert_behavior_config(config->behavior_up);
+    options->behavior_down = ngx_http_cayl_convert_behavior_config(config->behavior_down);
+    options->hover_delay_down = config->hover_delay_down;
+    options->hover_delay_up = config->hover_delay_up;
+
+    return options;
+}
+
+/* Find all HREFs in a buffer and return information about the URLs found, and the
+   location in the buffer where additional attributes can be added.
+
+   TODO: This does not find links that span the boundary between two buffers
+*/
 static ngx_http_cayl_matches_t *
 ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
 #if (NGX_PCRE)
@@ -417,6 +581,8 @@ ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
 #endif
 }
 
+/* Print the contents of a buffer from teh buffer chaing to the debug log.
+   Used only for debugging */
 static void
 ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
 
@@ -426,9 +592,6 @@ ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
 
     cur = buf->pos;
     while ((c = memchr(cur,'\n', buf->last - cur))) {
-        // ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-        //       "CAYL buffer pos: %d %d %d", c, cur, buf->last);
-
         s = ngx_pcalloc(r->pool, c - cur);
         memcpy(s,cur,c - cur);
         ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -441,29 +604,13 @@ ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
 
 }
 
+/***********************************************************************/
+/* Everything below here is currently standard nginx module setup code */
+/***********************************************************************/
+
 static char *
 ngx_http_cayl_filter(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_cayl_loc_conf_t *flcf = conf;
-
-    ngx_str_t                    *value;
-    ngx_http_complex_value_t    **cv;
-
-    cv = &flcf->variable;
-
-    if (*cv != NULL) {
-        return "is duplicate";
-    }
-
-    value = cf->args->elts;
-
-    if (value[1].len) {
-        cmd->offset = offsetof(ngx_http_cayl_loc_conf_t, variable);
-        return ngx_http_set_complex_value_slot(cf, cmd, conf);
-    }
-
-    *cv = (ngx_http_complex_value_t *) -1;
-
     return NGX_OK;
 }
 
@@ -477,6 +624,11 @@ ngx_http_cayl_create_loc_conf(ngx_conf_t *cf)
     if (conf == NULL) {
         return NULL;
     }
+
+    conf->behavior_up.data = NULL;
+    conf->behavior_down.data = NULL;
+    conf->hover_delay_up = NGX_CONF_UNSET_UINT;
+    conf->hover_delay_down = NGX_CONF_UNSET_UINT;
 
     /*
      * set by ngx_pcalloc():
@@ -504,13 +656,10 @@ ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
        return NGX_CONF_ERROR;
     }
 
-    if (conf->variable == NULL) {
-        conf->variable = prev->variable;
-    }
-
-    if (conf->variable == NULL) {
-        conf->variable = (ngx_http_complex_value_t *) -1;
-    }
+    ngx_conf_merge_str_value(conf->behavior_up,    prev->behavior_up,"none");
+    ngx_conf_merge_str_value(conf->behavior_down,  prev->behavior_down,"popup");
+    ngx_conf_merge_uint_value(conf->hover_delay_up,      prev->hover_delay_up,5);
+    ngx_conf_merge_uint_value(conf->hover_delay_down,    prev->hover_delay_down,2);
 
     return NGX_CONF_OK;
 }
