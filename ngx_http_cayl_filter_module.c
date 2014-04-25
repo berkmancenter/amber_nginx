@@ -334,14 +334,19 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
         return NULL;
     }
 
-    char *db = ngx_palloc(r->pool,cayl_config->db.len * sizeof(char));
-    strncpy(db, (char *)cayl_config->db.data,cayl_config->db.len);
+    char *db = ngx_palloc(r->pool,(cayl_config->db.len + 1) * sizeof(char));
+    strncpy(db, (char *)cayl_config->db.data, cayl_config->db.len);
+    db[cayl_config->db.len] = 0;
 
     sqlite_rc = sqlite3_open(db, &sqlite_handle);
     if (sqlite_rc) {
+        int extended_rc = sqlite3_extended_errcode(sqlite_handle);
+        char * msg = sqlite3_errmsg(sqlite_handle);
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL sqlite error details (%d,%s)", extended_rc, msg);
         sqlite3_close(sqlite_handle);
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "CAYL error opening sqlite database (%d)", sqlite_rc);
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "CAYL error opening sqlite database (%d,%s)", sqlite_rc, db);
         return NULL;
     }
 
@@ -368,20 +373,24 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
     if (sqlite_rc == SQLITE_DONE) { /* No data returned */
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                 "CAYL sqlite no results for url: (%V)", &url);
+        /* TODO: Save this URL to a table to be looked up later */
+        sqlite3_finalize(sqlite_statement);
         sqlite3_close(sqlite_handle);
         return NULL;
     } else if (sqlite_rc == SQLITE_ROW) {
         location_tmp = (const char *) sqlite3_column_text(sqlite_statement,0);
         /* Copy the location string, since it gets clobbered when the
            sqlite objects are closed */
-        location = ngx_palloc(r->pool,strlen(location_tmp) * sizeof(char));
+        location = ngx_palloc(r->pool,(strlen(location_tmp) + 1) * sizeof(char));
         strncpy(location,location_tmp,strlen(location_tmp));
+        location[strlen(location_tmp)] = 0;
 
         date = sqlite3_column_int(sqlite_statement,1);
         status = sqlite3_column_int(sqlite_statement,2);
         ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
             "CAYL sqlite results for url: (%V) %s,%d,%d", &url, location, date, status);
     } else {
+        sqlite3_finalize(sqlite_statement);
         sqlite3_close(sqlite_handle);
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL error executing sqlite statement: (%d)", sqlite_rc);
@@ -400,6 +409,12 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
     if (sqlite_rc != SQLITE_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL error closing sqlite database (%d)", sqlite_rc);
+    }
+
+    /* Check to see if the location is empty, which means that we don't have
+       a cached version available. */
+    if (strlen(location) == 0) {
+        return NULL;
     }
 
     cayl_options_t *options = ngx_http_cayl_build_options(r,cayl_config);
