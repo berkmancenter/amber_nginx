@@ -19,6 +19,7 @@ typedef struct {
     ngx_str_t                           behavior_down;
     ngx_uint_t                          hover_delay_up;
     ngx_uint_t                          hover_delay_down;
+    ngx_flag_t                          enabled;
 } ngx_http_cayl_loc_conf_t;
 
 
@@ -56,10 +57,10 @@ static sqlite3_stmt *           ngx_http_cayl_get_url_lookup(ngx_http_request_t 
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
 
     { ngx_string("cayl"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
-      ngx_http_cayl_filter,
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_1MORE,
+      ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
-      0,
+      offsetof(ngx_http_cayl_loc_conf_t, enabled),
       NULL },
 
     { ngx_string("cayl_db"),
@@ -153,7 +154,7 @@ ngx_http_cayl_header_filter(ngx_http_request_t *r)
 
     lcf = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
 
-    if (lcf->variable == (ngx_http_complex_value_t *) -1
+    if (!lcf->enabled
         || r->header_only
         || (r->method & NGX_HTTP_HEAD)
         || r != r->main
@@ -303,7 +304,7 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
 
     sqlite3_stmt *sqlite_statement = ngx_http_cayl_get_url_lookup(r,sqlite_handle);
     if (!sqlite_statement) {
-        ngx_http_cayl_close_database(r,sqlite_handle);        
+        ngx_http_cayl_close_database(r,sqlite_handle);
         return;
     }
 
@@ -711,6 +712,7 @@ ngx_http_cayl_create_loc_conf(ngx_conf_t *cf)
         return NULL;
     }
 
+    conf->enabled = NGX_CONF_UNSET;
     conf->db.data = NULL;
     conf->behavior_up.data = NULL;
     conf->behavior_down.data = NULL;
@@ -743,6 +745,7 @@ ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
        return NGX_CONF_ERROR;
     }
 
+    ngx_conf_merge_off_value(conf->enabled,              prev->enabled,1);
     ngx_conf_merge_str_value(conf->db,                   prev->db,"cayl.db");
     ngx_conf_merge_str_value(conf->behavior_up,          prev->behavior_up,"none");
     ngx_conf_merge_str_value(conf->behavior_down,        prev->behavior_down,"popup");
