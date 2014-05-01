@@ -5,6 +5,11 @@
 #include <sqlite3.h>
 #include "cayl_utils.h"
 
+#define CAYL_CACHE_ATTRIBUTES_ERROR -1
+#define CAYL_CACHE_ATTRIBUTES_FOUND 0
+#define CAYL_CACHE_ATTRIBUTES_EMPTY 1
+#define CAYL_CACHE_ATTRIBUTES_NOT_FOUND 2
+
 typedef struct {
     ngx_hash_t                          types;
     ngx_array_t                        *types_keys;
@@ -37,12 +42,16 @@ static char *ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
 static ngx_int_t ngx_http_cayl_filter_init(ngx_conf_t *cf);
 
-static void ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
+static void                     ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_http_cayl_matches_t *ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
-static ngx_int_t ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
-static cayl_options_t *ngx_http_cayl_build_options(ngx_http_request_t *r, ngx_http_cayl_loc_conf_t *config);
-static void ngx_http_cayl_insert_attributes(ngx_http_request_t *r, ngx_buf_t *buf, ngx_http_cayl_matches_t *matches);
-static ngx_str_t *ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url);
+static ngx_int_t                ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
+static cayl_options_t *         ngx_http_cayl_build_options(ngx_http_request_t *r, ngx_http_cayl_loc_conf_t *config);
+static void                     ngx_http_cayl_insert_attributes(ngx_http_request_t *r, ngx_buf_t *buf, ngx_http_cayl_matches_t *matches);
+static ngx_int_t                ngx_http_cayl_get_attribute(ngx_http_request_t *r, sqlite3 *sqlite_handle, sqlite3_stmt *sqlite_statement, ngx_str_t url, ngx_str_t *result);
+static sqlite3 *                ngx_http_cayl_get_database(ngx_http_request_t *r, ngx_str_t db_path);
+static ngx_int_t                ngx_http_cayl_finalize_statement (ngx_http_request_t *r, sqlite3_stmt *sqlite_statement);
+static ngx_int_t                ngx_http_cayl_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle);
+static sqlite3_stmt *           ngx_http_cayl_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle);
 
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
 
@@ -278,30 +287,54 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
     /* Find out where the end of the buffer is. If we go past this, BANG! */
     end_pos = cur_pos + (buf->end - buf->pos);
 
+    /* Get database and prepared statement for query */
+    ngx_http_cayl_loc_conf_t  *cayl_config;
+    cayl_config = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
+    if (!cayl_config) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+          "[CAYL] ngx_http_cayl_get_attribute - No configuration");
+        return;
+    }
+
+    sqlite3 *sqlite_handle = ngx_http_cayl_get_database(r,cayl_config->db);
+    if (!sqlite_handle) {
+        return;
+    }
+
+    sqlite3_stmt *sqlite_statement = ngx_http_cayl_get_url_lookup(r,sqlite_handle);
+    if (!sqlite_statement) {
+        ngx_http_cayl_close_database(r,sqlite_handle);        
+        return;
+    }
+
     for (int i = 0; i < matches->count; i++) {
         /* Copy the data up to the insertion point for the next match */
         copy_size = matches->insert_pos[i] + src_pos - cur_pos;
-        insertion = ngx_http_cayl_get_attribute(r, matches->url[i]);
+        insertion = ngx_palloc(r->pool,sizeof(ngx_str_t));
+        ngx_int_t result = ngx_http_cayl_get_attribute(r, sqlite_handle, sqlite_statement, matches->url[i], insertion);
         /* Make sure that we're not going to overrun the end of the buffer
          * If so, log a message, and return.
          * TODO: Handle this properly */
 
-        if (insertion && ((cur_pos + copy_size + insertion->len) > end_pos)) {
+        if ((result == CAYL_CACHE_ATTRIBUTES_FOUND) && ((cur_pos + copy_size + insertion->len) > end_pos)) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
               "[CAYL] ngx_http_cayl_body_filter - buffer not big enough for attributes");
-            return;
+            break;
         }
         memcpy(dest_pos, cur_pos, copy_size);
         dest_pos += copy_size;
         cur_pos += copy_size;
 
         /* Get the attributes to be inserted, and insert them */
-        if (insertion) {
+        if (result == CAYL_CACHE_ATTRIBUTES_FOUND) {
             memcpy(dest_pos, insertion->data, insertion->len);
             dest_pos += insertion->len;
         }
         buf->last = dest_pos + (last_pos - cur_pos);
     }
+
+    ngx_http_cayl_finalize_statement(r,sqlite_statement);
+    ngx_http_cayl_close_database(r,sqlite_handle);
 
     /* Add the text after the last match */
     if (end_pos > cur_pos) {
@@ -310,33 +343,14 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
     buf->last = dest_pos + (last_pos - cur_pos);
 }
 
-
-/* Return the CAYL attributes that should be added to the HREF with the given
-   target URL, based on data from the cache
-*/
-static ngx_str_t *
-ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
-
-    ngx_str_t *s;
-    ngx_int_t sqlite_rc;
+static sqlite3 *
+ngx_http_cayl_get_database(ngx_http_request_t *r, ngx_str_t db_path) {
     sqlite3 *sqlite_handle;
+    ngx_int_t sqlite_rc;
 
-    const char *location_tmp;
-    char *location;
-    int date;
-    int status;
-
-    ngx_http_cayl_loc_conf_t  *cayl_config;
-    cayl_config = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
-    if (!cayl_config) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-          "[CAYL] ngx_http_cayl_get_attribute - No configuration");
-        return NULL;
-    }
-
-    char *db = ngx_palloc(r->pool,(cayl_config->db.len + 1) * sizeof(char));
-    strncpy(db, (char *)cayl_config->db.data, cayl_config->db.len);
-    db[cayl_config->db.len] = 0;
+    char *db = ngx_palloc(r->pool,(db_path.len + 1) * sizeof(char));
+    strncpy(db, (char *)db_path.data, db_path.len);
+    db[db_path.len] = 0;
 
     sqlite_rc = sqlite3_open(db, &sqlite_handle);
     if (sqlite_rc) {
@@ -349,34 +363,96 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
                        "CAYL error opening sqlite database (%d,%s)", sqlite_rc, db);
         return NULL;
     }
+    return sqlite_handle;
+}
 
+static sqlite3_stmt *
+ngx_http_cayl_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle) {
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
     char *query_template = "SELECT ca.location, ca.date, ch.status FROM cayl_cache ca, cayl_check ch WHERE ca.url = ? AND ca.id = ch.id";
-    sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
+    ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         sqlite3_close(sqlite_handle);
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL error creating sqlite prepared statement (%d)", sqlite_rc);
         return NULL;
     }
+    return sqlite_statement;
+}
+
+static ngx_int_t
+ngx_http_cayl_finalize_statement (ngx_http_request_t *r, sqlite3_stmt *sqlite_statement) {
+    ngx_int_t sqlite_rc = sqlite3_finalize(sqlite_statement);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error finalizing statement (%d)", sqlite_rc);
+    }
+    return sqlite_rc;
+}
+
+static ngx_int_t
+ngx_http_cayl_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle) {
+    ngx_int_t sqlite_rc = sqlite3_close(sqlite_handle);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error closing sqlite database (%d)", sqlite_rc);
+    }
+    return sqlite_rc;
+}
+
+
+/* Get the CAYL attributes that should be added to the HREF with the given
+   target URL, based on data from the cache.
+
+   If the return value is CAYL_CACHE_ATTRIBUTES_ERROR, there was an error
+   If the return value is CAYL_CACHE_ATTRIBUTES_FOUND, the URL was found and attributes to insert in the HREF
+       are in the result parameter
+   If the return value is CAYL_CACHE_ATTRIBUTES_EMPTY, the URL was found, but there is no cache location
+       specified, so do not insert any attributes into the URL
+   If the return value is CAYL_CACHE_ATTRIBUTES_NOT_FOUND, the URL was not found
+
+*/
+static ngx_int_t
+ngx_http_cayl_get_attribute(ngx_http_request_t *r,
+                            sqlite3 *sqlite_handle,
+                            sqlite3_stmt *sqlite_statement,
+                            ngx_str_t url,
+                            ngx_str_t *result) {
+
+    ngx_int_t sqlite_rc;
+
+    const char *location_tmp;
+    char *location;
+    int date;
+    int status;
+
+    sqlite_rc = sqlite3_clear_bindings(sqlite_statement);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error clearing bindings: %V (%d)", url, sqlite_rc);
+        return CAYL_CACHE_ATTRIBUTES_ERROR;
+    }
+
+    sqlite_rc = sqlite3_reset(sqlite_statement);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error reseting prepared statement: %V (%d)", url, sqlite_rc);
+        return CAYL_CACHE_ATTRIBUTES_ERROR;
+    }
 
     sqlite_rc = sqlite3_bind_text(sqlite_statement, 1, (char *)url.data, url.len, SQLITE_STATIC);
     if (sqlite_rc != SQLITE_OK) {
-        sqlite3_close(sqlite_handle);
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL error binding sqlite parameter: %V (%d)", url, sqlite_rc);
-        return NULL;
+        return CAYL_CACHE_ATTRIBUTES_ERROR;
     }
 
     sqlite_rc = sqlite3_step(sqlite_statement);
     if (sqlite_rc == SQLITE_DONE) { /* No data returned */
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                 "CAYL sqlite no results for url: (%V)", &url);
-        /* TODO: Save this URL to a table to be looked up later */
-        sqlite3_finalize(sqlite_statement);
-        sqlite3_close(sqlite_handle);
-        return NULL;
+        return CAYL_CACHE_ATTRIBUTES_NOT_FOUND;
     } else if (sqlite_rc == SQLITE_ROW) {
         location_tmp = (const char *) sqlite3_column_text(sqlite_statement,0);
         /* Copy the location string, since it gets clobbered when the
@@ -390,45 +466,32 @@ ngx_http_cayl_get_attribute(ngx_http_request_t *r, ngx_str_t url) {
         ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
             "CAYL sqlite results for url: (%V) %s,%d,%d", &url, location, date, status);
     } else {
-        sqlite3_finalize(sqlite_statement);
-        sqlite3_close(sqlite_handle);
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "CAYL error executing sqlite statement: (%d)", sqlite_rc);
-        return NULL;
-    }
-
-    sqlite_rc = sqlite3_finalize(sqlite_statement);
-    if (sqlite_rc != SQLITE_OK) {
-        sqlite3_close(sqlite_handle);
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "CAYL error finalizing statement (%d)", sqlite_rc);
-        return NULL;
-    }
-
-    sqlite_rc = sqlite3_close(sqlite_handle);
-    if (sqlite_rc != SQLITE_OK) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "CAYL error closing sqlite database (%d)", sqlite_rc);
+        return CAYL_CACHE_ATTRIBUTES_ERROR;
     }
 
     /* Check to see if the location is empty, which means that we don't have
        a cached version available. */
     if (strlen(location) == 0) {
-        return NULL;
+        return CAYL_CACHE_ATTRIBUTES_EMPTY;
+    } else {
+        ngx_http_cayl_loc_conf_t  *cayl_config;
+        cayl_config = ngx_http_get_module_loc_conf(r, ngx_http_cayl_filter_module);
+
+        cayl_options_t *options = ngx_http_cayl_build_options(r,cayl_config);
+
+        result->data = ngx_palloc(r->pool,CAYL_MAX_ATTRIBUTE_STRING);
+        int rc = cayl_build_attribute(options, result->data, location, status, date);
+        if (rc) {
+            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "CAYL error gnerating attribute string (%d)", rc);
+            return CAYL_CACHE_ATTRIBUTES_ERROR;
+        }
+        result->len = strlen((const char*) result->data);
     }
 
-    cayl_options_t *options = ngx_http_cayl_build_options(r,cayl_config);
-
-    s = ngx_palloc(r->pool,sizeof(ngx_str_t));
-    s->data = ngx_palloc(r->pool,CAYL_MAX_ATTRIBUTE_STRING);
-    int rc = cayl_build_attribute(options, s->data, location, status, date);
-    if (rc) {
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-            "CAYL error gnerating attribute string (%d)", rc);
-        return NULL;
-    }
-    s->len = strlen((const char*) s->data);
-    return s;
+    return CAYL_CACHE_ATTRIBUTES_FOUND;
 }
 
 static int
