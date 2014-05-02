@@ -53,7 +53,7 @@ static sqlite3 *                ngx_http_cayl_get_database(ngx_http_request_t *r
 static ngx_int_t                ngx_http_cayl_finalize_statement (ngx_http_request_t *r, sqlite3_stmt *sqlite_statement);
 static ngx_int_t                ngx_http_cayl_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle);
 static sqlite3_stmt *           ngx_http_cayl_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle);
-
+static ngx_int_t                ngx_http_cayl_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url);
 static ngx_command_t  ngx_http_cayl_filter_commands[] = {
 
     { ngx_string("cayl"),
@@ -322,6 +322,12 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
               "[CAYL] ngx_http_cayl_body_filter - buffer not big enough for attributes");
             break;
         }
+
+        if (result == CAYL_CACHE_ATTRIBUTES_NOT_FOUND) {
+            //TODO: Add a new entry to the queue, after checking that it's not in the exclude table
+            ngx_int_t rc = ngx_http_cayl_enqueue_url(r, sqlite_handle, matches->url[i]);
+        }
+
         memcpy(dest_pos, cur_pos, copy_size);
         dest_pos += copy_size;
         cur_pos += copy_size;
@@ -402,6 +408,42 @@ ngx_http_cayl_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle) {
     return sqlite_rc;
 }
 
+static ngx_int_t
+ngx_http_cayl_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url) {
+    sqlite3_stmt *sqlite_statement;
+    const char *query_tail;
+    char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) VALUES(?, ?)";
+    ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error creating sqlite prepared statement to insert url into queue (%d)", sqlite_rc);
+        return -1;
+    }
+    sqlite_rc = sqlite3_bind_text(sqlite_statement, 1, (char *)url.data, url.len, SQLITE_STATIC);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error binding sqlite parameter: %V (%d)", url, sqlite_rc);
+        ngx_http_cayl_finalize_statement(r,sqlite_statement);
+        return -1;
+    }
+    sqlite_rc = sqlite3_bind_int(sqlite_statement, 2, time(NULL));
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "CAYL error binding sqlite parameter: %s (%d)", "time()", sqlite_rc);
+        ngx_http_cayl_finalize_statement(r,sqlite_statement);
+        return -1;
+    }
+    sqlite_rc = sqlite3_step(sqlite_statement);
+    if (sqlite_rc == SQLITE_DONE) { /* No data returned */
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "CAYL Enqueued URL: %V", &url);
+    } else {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "CAYL error enqueuing URL: %V (%d)", &url, sqlite_rc);
+    }
+    ngx_http_cayl_finalize_statement(r,sqlite_statement);
+    return 0;
+}
 
 /* Get the CAYL attributes that should be added to the HREF with the given
    target URL, based on data from the cache.
