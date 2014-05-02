@@ -28,7 +28,7 @@ int cayl_build_attribute(cayl_options_t *options, unsigned char *out, char *loca
         strftime(date_string,CAYL_MAX_DATE_STRING,"%FT%T%z",timeinfo);
         snprintf(out,
                  CAYL_MAX_ATTRIBUTE_STRING,
-                 "data-cache='%s %s' data-cayl-behavior='%s'",
+                 "data-cache='%s %s' data-cayl-behavior='%s' ",
                  location,
                  date_string,
                  behavior
