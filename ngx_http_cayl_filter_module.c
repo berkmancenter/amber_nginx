@@ -412,7 +412,10 @@ static ngx_int_t
 ngx_http_cayl_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url) {
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
-    char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) VALUES(?, ?)";
+
+    // NEW QUERY TEMPLATE: INSERT OR IGNORE INTO cayl_queue (url, created) SELECT "http://test5.com",1 where "http://test5.com" not in (select url from cayl_exclude)
+
+    char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) SELECT ?1,?2 where ?1 not in (select url from cayl_exclude)";
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,

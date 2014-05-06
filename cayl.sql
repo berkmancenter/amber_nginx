@@ -30,3 +30,9 @@ CREATE TABLE cayl_queue (
   lock           INTEGER,
   PRIMARY KEY(url)
 );
+
+CREATE TABLE cayl_exclude (
+  url            TEXT NOT NULL,
+  created        INTEGER,
+  PRIMARY KEY(url)
+);
