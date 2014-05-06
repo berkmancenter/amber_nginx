@@ -179,7 +179,7 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
     ngx_log_t             *log = r->connection->log;
     ngx_buf_t             *buf;
-    unsigned int            i;
+    int                    i;
     ngx_chain_t           *cl;
     ngx_http_cayl_ctx_t   *ctx;
 
@@ -358,8 +358,8 @@ ngx_http_cayl_get_database(ngx_http_request_t *r, ngx_str_t db_path) {
 
     sqlite_rc = sqlite3_open(db, &sqlite_handle);
     if (sqlite_rc) {
-        int extended_rc = sqlite3_extended_errcode(sqlite_handle);
-        const char *msg = sqlite3_errmsg(sqlite_handle);
+        __attribute__ ((__unused__)) int extended_rc = sqlite3_extended_errcode(sqlite_handle);
+        __attribute__ ((__unused__)) const char * msg = sqlite3_errmsg(sqlite_handle);
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "CAYL sqlite error details (%d,%s)", extended_rc, msg);
         sqlite3_close(sqlite_handle);
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
