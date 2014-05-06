@@ -36,16 +36,13 @@ typedef struct {
     ngx_str_t  *url;             /* Array - urls within the buffer. */
 } ngx_http_cayl_matches_t;
 
-static char *ngx_http_cayl_filter(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
 static void *ngx_http_cayl_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
 static ngx_int_t ngx_http_cayl_filter_init(ngx_conf_t *cf);
 
-static void                     ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
+// static void                     ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf);
 static ngx_http_cayl_matches_t *ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
-static ngx_int_t                ngx_http_cayl_insert_string(ngx_chain_t *cl, u_int *pos, ngx_http_request_t *r);
 static cayl_options_t *         ngx_http_cayl_build_options(ngx_http_request_t *r, ngx_http_cayl_loc_conf_t *config);
 static void                     ngx_http_cayl_insert_attributes(ngx_http_request_t *r, ngx_buf_t *buf, ngx_http_cayl_matches_t *matches);
 static ngx_int_t                ngx_http_cayl_get_attribute(ngx_http_request_t *r, sqlite3 *sqlite_handle, sqlite3_stmt *sqlite_statement, ngx_str_t url, ngx_str_t *result);
@@ -182,9 +179,9 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
     ngx_log_t             *log = r->connection->log;
     ngx_buf_t             *buf;
-    ngx_uint_t             last;
-    ngx_chain_t           *cl, *nl;
-    ngx_http_cayl_ctx_t *ctx;
+    ngx_uint_t            i;
+    ngx_chain_t           *cl;
+    ngx_http_cayl_ctx_t   *ctx;
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0,
                    "http CAYL body filter");
@@ -196,7 +193,6 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return ngx_http_next_body_filter(r, in);
     }
 
-    last = 0;
     ngx_http_cayl_matches_t *matches;
 
     for (cl = in; cl; cl = cl->next) {
@@ -206,7 +202,7 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0,
                  "CAYL buffer match count: %d", (matches) ? matches->count : 0);
         if (matches && matches->count) {
-            for (int i = 0; i < matches->count; i++) {
+            for (i = 0; i < matches->count; i++) {
                 ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
                     "CAYL buffer match [%d]: %d, %d %V", i, matches->insert_pos[i], matches->url[i].len, &matches->url[i]);
             }
@@ -245,6 +241,7 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             // cl->buf->start = cl->buf->last;
 
             /* Create a new link to add to the buffer chain */
+            // ngx_chain_t           *nl    ;
             // nl = ngx_alloc_chain_link(r->pool);
             // if (nl == NULL) {
             //     ngx_log_error(NGX_LOG_ERR, log, 0,
@@ -278,7 +275,7 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
 
     u_char *dest_pos = buf->pos;
     u_char *cur_pos, *src_pos, *last_pos, *end_pos;
-    int copy_size;
+    int copy_size, i;
     ngx_str_t *insertion;
 
     cur_pos = ngx_palloc(r->pool,buf->last - buf->start);
@@ -308,7 +305,7 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
         return;
     }
 
-    for (int i = 0; i < matches->count; i++) {
+    for (i = 0; i < matches->count; i++) {
         /* Copy the data up to the insertion point for the next match */
         copy_size = matches->insert_pos[i] + src_pos - cur_pos;
         insertion = ngx_palloc(r->pool,sizeof(ngx_str_t));
@@ -325,7 +322,7 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
 
         if (result == CAYL_CACHE_ATTRIBUTES_NOT_FOUND) {
             //TODO: Add a new entry to the queue, after checking that it's not in the exclude table
-            ngx_int_t rc = ngx_http_cayl_enqueue_url(r, sqlite_handle, matches->url[i]);
+            ngx_http_cayl_enqueue_url(r, sqlite_handle, matches->url[i]);
         }
 
         memcpy(dest_pos, cur_pos, copy_size);
@@ -362,9 +359,8 @@ ngx_http_cayl_get_database(ngx_http_request_t *r, ngx_str_t db_path) {
     sqlite_rc = sqlite3_open(db, &sqlite_handle);
     if (sqlite_rc) {
         int extended_rc = sqlite3_extended_errcode(sqlite_handle);
-        char * msg = sqlite3_errmsg(sqlite_handle);
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "CAYL sqlite error details (%d,%s)", extended_rc, msg);
+        const char *msg = sqlite3_errmsg(sqlite_handle);
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "CAYL sqlite error details (%d,%s)", extended_rc, msg);
         sqlite3_close(sqlite_handle);
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                        "CAYL error opening sqlite database (%d,%s)", sqlite_rc, db);
@@ -412,8 +408,6 @@ static ngx_int_t
 ngx_http_cayl_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url) {
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
-
-    // NEW QUERY TEMPLATE: INSERT OR IGNORE INTO cayl_queue (url, created) SELECT "http://test5.com",1 where "http://test5.com" not in (select url from cayl_exclude)
 
     char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) SELECT ?1,?2 where ?1 not in (select url from cayl_exclude)";
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
@@ -587,7 +581,7 @@ ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
     u_char                    errstr[NGX_MAX_CONF_ERRSTR];
     ngx_str_t                 err;
     ngx_str_t                 pattern;
-    int                       rc, n, capture_count;
+    int                       rc, capture_count;
     ngx_regex_t               *match_regex;
 
     pattern.data = (u_char*) "href=[\"'](http[^\v()<>{}\\[\\]\"']+)['\"]";
@@ -631,7 +625,6 @@ ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
 
     }
 
-    char *s;
     u_char *c;
     u_char* cur;
 
@@ -715,37 +708,30 @@ ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
 
 /* Print the contents of a buffer from teh buffer chaing to the debug log.
    Used only for debugging */
-static void
-ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
+// static void
+// ngx_http_cayl_log_buffer(ngx_http_request_t *r, ngx_buf_t *buf) {
 
-    u_char *c;
-    u_char* cur;
-    char *s;
+//     u_char *c;
+//     u_char* cur;
+//     char *s;
 
-    cur = buf->pos;
-    while ((c = memchr(cur,'\n', buf->last - cur))) {
-        s = ngx_pcalloc(r->pool, c - cur);
-        memcpy(s,cur,c - cur);
-        ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                      "CAYL buffer: %s", s);
-        cur = c + 1;
-        if (cur >= buf->last) {
-            break;
-        }
-    }
+//     cur = buf->pos;
+//     while ((c = memchr(cur,'\n', buf->last - cur))) {
+//         s = ngx_pcalloc(r->pool, c - cur);
+//         memcpy(s,cur,c - cur);
+//         ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+//                       "CAYL buffer: %s", s);
+//         cur = c + 1;
+//         if (cur >= buf->last) {
+//             break;
+//         }
+//     }
 
-}
+// }
 
 /***********************************************************************/
 /* Everything below here is currently standard nginx module setup code */
 /***********************************************************************/
-
-static char *
-ngx_http_cayl_filter(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    return NGX_OK;
-}
-
 
 static void *
 ngx_http_cayl_create_loc_conf(ngx_conf_t *cf)
