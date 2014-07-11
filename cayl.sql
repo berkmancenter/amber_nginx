@@ -21,6 +21,7 @@ CREATE TABLE cayl_check (
   status         INTEGER,
   last_checked   INTEGER,
   next_check     INTEGER,
+  message        TEXT NOT NULL,
   PRIMARY KEY  (id)
 );
 

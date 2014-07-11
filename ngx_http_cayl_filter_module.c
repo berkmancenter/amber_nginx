@@ -219,27 +219,40 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
             /* The new buffer needs to be bigger, since we're adding HTML
              * attributes */
-            // int CAYL_ATTRIBUTES_MAX_LENGTH = 200 * sizeof(u_char);
-            // int buf_size = (CAYL_ATTRIBUTES_MAX_LENGTH  * matches->count)
-            //                 + cl->buf->last - cl->buf->pos;
-            // buf->pos = ngx_palloc(r->pool,buf_size);
-            // buf->start = buf->pos;
-            // buf->end = buf->pos + buf_size;
-            // buf->last = buf->pos;
+            int CAYL_ATTRIBUTES_MAX_LENGTH = 200 * sizeof(u_char);
+            int buf_size = (CAYL_ATTRIBUTES_MAX_LENGTH  * matches->count)
+                            + cl->buf->last - cl->buf->pos;
+            buf->pos = ngx_palloc(r->pool,buf_size);
+            buf->start = buf->pos;
+            buf->end = buf->pos + buf_size;
+            buf->last = buf->pos;
+            buf->memory = 1;
 
-            /* Copy the old buffer to the new one, inserting attributes as we go */
-            ngx_http_cayl_insert_attributes(r,cl->buf,matches);
-            // buf->memory = 1;
-            // buf->last_buf = cl->buf->last_buf;
-            // cl->buf->last_buf = 0;
-
-            /* Zero out the old buffer */
             ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
-                "CAYL old buffer pos/last start/end : %i/%i %i/%i",
+                "CAYL [1] old buffer pos/last start/end : %i/%i %i/%i",
                 cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end);
-            // cl->buf->last = cl->buf->pos + 1;
-            // cl->buf->start = cl->buf->last;
 
+            /* Copy the old buffer to the new one  */
+            memcpy(buf->pos,cl->buf->pos,cl->buf->last - cl->buf->pos);
+
+            /* Set the pointer to the current end of the buffer */
+            buf->last = buf->pos + (cl->buf->last - cl->buf->pos);
+
+            /* Make sure we reflect if we're replacing the last buffer */
+            buf->last_buf = cl->buf->last_buf;
+
+            /* Insert attributes into the new buffer  */
+            ngx_http_cayl_insert_attributes(r,buf,matches);
+
+            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
+                "CAYL [2] old buffer pos/last start/end : %i/%i %i/%i", cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end);
+
+            /* Replace the buffer in the existing chain with our new buffer */
+            /* To Do - Make sure we free the memory approprately (or that nginx does) */
+            cl->buf = buf;
+
+             /*********** Code below is if we're adding a new chain element, 
+                          rather than just replacing the buffer. Will be removed */   
             /* Create a new link to add to the buffer chain */
             // ngx_chain_t           *nl    ;
             // nl = ngx_alloc_chain_link(r->pool);
@@ -248,12 +261,10 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             //                   "[cayl] ngx_http_cayl_body_filter error.");
             //     return NGX_ERROR;
             // }
+            // cl->buf->last_buf = 0;
             // nl->buf = buf;
             // nl->next = cl->next;
             // cl->next = nl;
-            //
-            //
-            //
             // cl = nl; /* Otherwise our loop will process the buffer just added */
         }
     }
@@ -331,6 +342,7 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
 
         /* Get the attributes to be inserted, and insert them */
         if (result == CAYL_CACHE_ATTRIBUTES_FOUND) {
+            ngx_log_debug2(NGX_LOG_ERR, r->connection->log, 0, "[CAYL] regex insert: (%d,%V)",dest_pos,insertion);
             memcpy(dest_pos, insertion->data, insertion->len);
             dest_pos += insertion->len;
         }
@@ -345,6 +357,10 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
         memcpy(dest_pos, cur_pos, last_pos - cur_pos);
     }
     buf->last = dest_pos + (last_pos - cur_pos);
+    if (buf->last > buf->end) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "[CAYL] BUFFER OVERFLOW");
+
+    }
 }
 
 static sqlite3 *
@@ -410,7 +426,7 @@ ngx_http_cayl_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
 
-    char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) SELECT ?1,?2 where ?1 not in (select url from cayl_exclude)";
+    char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) SELECT ?1,?2 where ?1 not in (select url from cayl_exclude) and ?1 not in (select url from cayl_check)";
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
