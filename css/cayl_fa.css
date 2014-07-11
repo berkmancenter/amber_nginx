@@ -14,37 +14,32 @@
   background: url(../images/Arrow-Large-Left.png) left bottom no-repeat;      
   text-align: right;
 }             
+
+.cayl-arrow {
+  margin-left: 0;
+  margin-right: 60px;
+}
+.cayl-hover .cayl-status-text {
+   background-position: right 10px center;
+   padding-right: 40px;
+   padding-left: 0;
+}
+
+.cayl-hover .cayl-cache-text {
+  padding-left: 0;
+  padding-right: 40px;
+}
               
-.cayl-hover.cayl-up {
-  padding-right: 0;
-  border-top-left-radius: 4px; 
-  border-bottom-left-radius: 4px; 
-} 
-
-.cayl-hover.cayl-up .cayl-text {
-  border-radius: 0 4px 4px 0; 
-  padding: 0 36px 0 8px;
-  background: #34495e url(../images/Checkmark-Small.png) right center no-repeat;   
-  border-right: 8px solid #34495e;   
-  float: right;
-}                          
-
-.cayl-hover.cayl-up a.cayl-live {
-  border-radius: 4px 0 0 4px; 
+.cayl-hover a.cayl-info {
+  margin-right: 0;
+  margin-left: 10px;
 }
 
-.cayl-hover.cayl-up .cayl-arrow {
-  right: 20px;
+.cayl-hover .cayl-links a {
+  margin-left: 0;
+  margin-right: 40px;
 }
-                        
-.cayl-hover.cayl-down .cayl-arrow {
-  right: 60px;
-}
-                        
-.cayl-hover.cayl-up a,
-.cayl-hover.cayl-down a.cayl-live,
-.cayl-hover.cayl-down a.cayl-cache {
-  background:  #5b88b3 url(../images/Arrow-Small-Left.png) 8px center no-repeat;
-  padding: 0 12px 0 32px;
-}                               
 
+a.cayl-info {
+  float: left;
+}
