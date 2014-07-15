@@ -31,4 +31,12 @@ Specify additional content mime-types to be processed by Amber (default is text/
 
     cayl_filter <content-type>
 
+Insert Javascript and CSS required for Amber to function. `Required`
+
+    subs_filter '</head>' '<script type="text/javascript" src="/cayl/js/cayl.js"></script><link rel="stylesheet" type="text/css" href="/cayl/css/cayl.css"></head>';
+
+Display Farsi version of Javascript and CSS 
+
+    subs_filter '</head>' '<script type="text/javascript">var cayl_locale="fa";</script><script type="text/javascript" src="/cayl/js/cayl.js"></script><link rel="stylesheet" type="text/css" href="/cayl/css/cayl.css"><link rel="stylesheet" type="text/css" href="/cayl/css/cayl_fa.css"></head>';
+
 
