@@ -1,45 +1,45 @@
-.cayl-interstitial .cayl-cached, 
-.cayl-interstitial .cayl-live {    
+.amber-interstitial .amber-cached, 
+.amber-interstitial .amber-live {    
   float: right;
 }
 
-.cayl-cached {
+.amber-cached {
   margin-right: 0;
   margin-left: 25px;
 }                    
                    
-.cayl-interstitial .cayl-cached a, 
-.cayl-interstitial .cayl-live a
+.amber-interstitial .amber-cached a, 
+.amber-interstitial .amber-live a
 {                                                                        
   background: url(../images/Arrow-Large-Left.png) left bottom no-repeat;      
   text-align: right;
 }             
 
-.cayl-arrow {
+.amber-arrow {
   margin-left: 0;
   margin-right: 60px;
 }
-.cayl-hover .cayl-status-text {
+.amber-hover .amber-status-text {
    background-position: right 10px center;
    padding-right: 40px;
    padding-left: 0;
 }
 
-.cayl-hover .cayl-cache-text {
+.amber-hover .amber-cache-text {
   padding-left: 0;
   padding-right: 40px;
 }
               
-.cayl-hover a.cayl-info {
+.amber-hover a.amber-info {
   margin-right: 0;
   margin-left: 10px;
 }
 
-.cayl-hover .cayl-links a {
+.amber-hover .amber-links a {
   margin-left: 0;
   margin-right: 40px;
 }
 
-a.cayl-info {
+a.amber-info {
   float: left;
 }
