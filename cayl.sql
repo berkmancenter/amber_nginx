@@ -1,11 +1,11 @@
-CREATE TABLE cayl_activity (
+CREATE TABLE amber_activity (
   id     TEXT,
   date   INTEGER,
   views  INTEGER,
   PRIMARY KEY  (id)
 );
 
-CREATE TABLE cayl_cache (
+CREATE TABLE amber_cache (
   id         TEXT NOT NULL,
   url        TEXT NOT NULL,
   location   TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE cayl_cache (
   PRIMARY KEY  (id)
 );
 
-CREATE TABLE cayl_check (
+CREATE TABLE amber_check (
   id             TEXT NOT NULL,
   url            TEXT NOT NULL,
   status         INTEGER,
@@ -25,14 +25,14 @@ CREATE TABLE cayl_check (
   PRIMARY KEY  (id)
 );
 
-CREATE TABLE cayl_queue (
+CREATE TABLE amber_queue (
   url            TEXT NOT NULL,
   created        INTEGER,
   lock           INTEGER,
   PRIMARY KEY(url)
 );
 
-CREATE TABLE cayl_exclude (
+CREATE TABLE amber_exclude (
   url            TEXT NOT NULL,
   created        INTEGER,
   PRIMARY KEY(url)
