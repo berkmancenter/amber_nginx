@@ -3,7 +3,7 @@
 #include <ngx_http.h>
 #include <nginx.h>
 #include <sqlite3.h>
-#include "cayl_utils.h"
+#include "amber_utils.h"
 
 #define CAYL_CACHE_ATTRIBUTES_ERROR -1
 #define CAYL_CACHE_ATTRIBUTES_FOUND 0
