@@ -390,7 +390,7 @@ static sqlite3_stmt *
 ngx_http_cayl_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle) {
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
-    char *query_template = "SELECT ca.location, ca.date, ch.status FROM cayl_cache ca, cayl_check ch WHERE ca.url = ? AND ca.id = ch.id";
+    char *query_template = "SELECT aa.location, aa.date, ah.status FROM amber_cache aa, amber_check ah WHERE aa.url = ? AND aa.id = ah.id";
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         sqlite3_close(sqlite_handle);
@@ -426,7 +426,7 @@ ngx_http_cayl_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
 
-    char *query_template = "INSERT OR IGNORE INTO cayl_queue (url, created) SELECT ?1,?2 where ?1 not in (select url from cayl_exclude) and ?1 not in (select url from cayl_check)";
+    char *query_template = "INSERT OR IGNORE INTO amber_queue (url, created) SELECT ?1,?2 where ?1 not in (select url from amber_exclude) and ?1 not in (select url from amber_check)";
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
