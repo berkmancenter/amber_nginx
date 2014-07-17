@@ -234,11 +234,18 @@ var amber = {
   },
 
   calculate_hover_position : function (target, status) {
+    var edge_buffer = 15;
     var offset = amber.util_offset(target);
     var result = {"left" : offset.left - 30, "top" : offset.top - 105}
     if (amber.rtl) {
       var hover = document.querySelectorAll(".amber-hover")[0];
       result.left = result.left + target.offsetWidth - hover.offsetWidth;
+    }
+    if (result.left < edge_buffer) {
+      result.left = edge_buffer;
+    }
+    if (result.top < edge_buffer) {
+      result.top = edge_buffer;
     }
     return result;
   },
