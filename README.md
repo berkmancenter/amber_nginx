@@ -1,5 +1,7 @@
 # Amber nginx plugin #
 
+[![Build Status](https://travis-ci.org/berkmancenter/robustness_nginx.png?branch=master)](https://travis-ci.org/berkmancenter/robustness_nginx)
+
 ## Installation ##
 
 ## Configuration ##
