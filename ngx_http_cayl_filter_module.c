@@ -183,8 +183,7 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_chain_t           *cl;
     ngx_http_cayl_ctx_t   *ctx;
 
-    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0,
-                   "http CAYL body filter");
+    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, log, 0, "http CAYL body filter");
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_cayl_filter_module);
     if (ctx == NULL) {
@@ -196,11 +195,8 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_http_cayl_matches_t *matches;
 
     for (cl = in; cl; cl = cl->next) {
-        //  ngx_log_debug5(NGX_LOG_DEBUG_HTTP, log, 0,
-        //        "CAYL buffer processed: %p %p %p %p %d", cl->buf->temporary, cl->buf->memory, cl->buf->in_file, cl->buf->end, ngx_buf_size(cl->buf));
         matches = ngx_http_cayl_find_links(r, cl->buf);
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0,
-                 "CAYL buffer match count: %d", (matches) ? matches->count : 0);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0, "CAYL buffer match count: %d", (matches) ? matches->count : 0);
         if (matches && matches->count) {
             for (i = 0; i < matches->count; i++) {
                 ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
@@ -212,24 +208,21 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
              * buffer and replace it with the new one */
             buf = ngx_calloc_buf(r->pool);
             if (buf == NULL) {
-                ngx_log_error(NGX_LOG_ERR, log, 0,
-                              "[CAYL] ngx_http_cayl_body_filter error.");
+                ngx_log_error(NGX_LOG_ERR, log, 0, "[CAYL] ngx_http_cayl_body_filter error.");
                 return NGX_ERROR;
             }
 
             /* The new buffer needs to be bigger, since we're adding HTML
              * attributes */
             int CAYL_ATTRIBUTES_MAX_LENGTH = 200 * sizeof(u_char);
-            int buf_size = (CAYL_ATTRIBUTES_MAX_LENGTH  * matches->count)
-                            + cl->buf->last - cl->buf->pos;
+            int buf_size = (CAYL_ATTRIBUTES_MAX_LENGTH  * matches->count) + cl->buf->last - cl->buf->pos;
             buf->pos = ngx_palloc(r->pool,buf_size);
             buf->start = buf->pos;
             buf->end = buf->pos + buf_size;
             buf->last = buf->pos;
             buf->memory = 1;
 
-            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0,
-                "CAYL [1] old buffer pos/last start/end : %i/%i %i/%i",
+            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, log, 0, "CAYL [1] old buffer pos/last start/end : %i/%i %i/%i",
                 cl->buf->pos, cl->buf->last, cl->buf->start, cl->buf->end);
 
             /* Copy the old buffer to the new one  */
@@ -250,22 +243,6 @@ ngx_http_cayl_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             /* Replace the buffer in the existing chain with our new buffer */
             /* To Do - Make sure we free the memory approprately (or that nginx does) */
             cl->buf = buf;
-
-             /*********** Code below is if we're adding a new chain element, 
-                          rather than just replacing the buffer. Will be removed */   
-            /* Create a new link to add to the buffer chain */
-            // ngx_chain_t           *nl    ;
-            // nl = ngx_alloc_chain_link(r->pool);
-            // if (nl == NULL) {
-            //     ngx_log_error(NGX_LOG_ERR, log, 0,
-            //                   "[cayl] ngx_http_cayl_body_filter error.");
-            //     return NGX_ERROR;
-            // }
-            // cl->buf->last_buf = 0;
-            // nl->buf = buf;
-            // nl->next = cl->next;
-            // cl->next = nl;
-            // cl = nl; /* Otherwise our loop will process the buffer just added */
         }
     }
 
