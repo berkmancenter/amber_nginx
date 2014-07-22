@@ -37,3 +37,9 @@ CREATE TABLE amber_exclude (
   created        INTEGER,
   PRIMARY KEY(url)
 );
+
+CREATE TABLE amber_variables (
+  name            TEXT NOT NULL,
+  value           TEXT NOT NULL,
+  PRIMARY KEY(name)
+);
