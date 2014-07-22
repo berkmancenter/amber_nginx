@@ -9,6 +9,8 @@ The Amber plugin consists of two components:
 
 ## Installation ##
 
+Coming soon..
+
 ## Configuration - Nginx plugin ##
 
 The Amber nginx plugin uses the following configuration directives. See the provided cayl.conf for examples. 
@@ -48,5 +50,5 @@ Display Farsi version of Javascript and CSS
 
 ## Configuration - Caching ##
 
-The caching process is configured through amber.ini - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/robustness_common/blob/master/src/amber.ini) 
+The caching process is configured through ```amber.ini``` - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/robustness_common/blob/master/src/amber.ini) 
 
