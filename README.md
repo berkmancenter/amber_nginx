@@ -36,6 +36,17 @@ If the behavior is "hover", the delay in seconds before displaying the hover pop
     amber_hover_delay_up <time in seconds>;
     amber_hover_delay_down <time in seconds>;
 
+Specific behavior can be specified for an additional country. The country must be identified, using the ISO code (e.g. US, DE). 
+
+    amber_country <country_code>
+
+The behavior for the country is set using the usual directives, prefixed by ```country_```
+
+    country_amber_behavior_down <hover|popup|cache>;
+    country_amber_behavior_up <hover|popup|cache>;
+    country_amber_hover_delay_up <time in seconds>;
+    country_amber_hover_delay_down <time in seconds>;
+
 Specify additional content mime-types to be processed by Amber (default is text/html)
 
     amber_filter <content-type>
