@@ -396,8 +396,8 @@ ngx_http_amber_get_database(ngx_http_request_t *r, ngx_str_t db_path) {
         __attribute__ ((__unused__)) const char * msg = sqlite3_errmsg(sqlite_handle);
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "AMBER sqlite error details (%d,%s)", extended_rc, msg);
         sqlite3_close(sqlite_handle);
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "AMBER error opening sqlite database (%d,%s)", sqlite_rc, db);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                       "AMBER error opening sqlite database (%d,%s). Make sure database file and its directory are writable", sqlite_rc, db);
         return NULL;
     }
     return sqlite_handle;
