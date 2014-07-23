@@ -102,7 +102,7 @@ var amber = {
         var x = countries[i].split(' ');
         var c = x.shift();
         if (x.length == 2) {
-          result[c] = amber.parse_country_behavior(x.join(' '));
+          result[c.toUpperCase()] = amber.parse_country_behavior(x.join(' '));
         }
       }
     }

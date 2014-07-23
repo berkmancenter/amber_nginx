@@ -4,7 +4,7 @@
 #define CAYL_ACTION_CACHE    3
 #define CAYL_STATUS_DOWN     0
 #define CAYL_STATUS_UP       1
-#define CAYL_MAX_ATTRIBUTE_STRING 200
+#define CAYL_MAX_ATTRIBUTE_STRING 250
 
 
 typedef struct {
@@ -12,6 +12,11 @@ typedef struct {
     int        behavior_down;    /* Default behaviour when site is down */
     int        hover_delay_up;   /* Hover delay when site is up */
     int        hover_delay_down; /* Hover delay when site is down */
+    char       country[2];
+    int        country_behavior_up;      /* Default behaviour when site is up */
+    int        country_behavior_down;    /* Default behaviour when site is down */
+    int        country_hover_delay_up;   /* Hover delay when site is up */
+    int        country_hover_delay_down; /* Hover delay when site is down */
 } cayl_options_t;
 
 int cayl_get_behavior(cayl_options_t *options, unsigned char *out, int status);

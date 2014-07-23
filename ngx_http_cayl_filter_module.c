@@ -19,6 +19,12 @@ typedef struct {
     ngx_str_t                           behavior_down;
     ngx_uint_t                          hover_delay_up;
     ngx_uint_t                          hover_delay_down;
+    ngx_str_t                           country;
+    ngx_str_t                           country_behavior_up;
+    ngx_str_t                           country_behavior_down;
+    ngx_uint_t                          country_hover_delay_up;
+    ngx_uint_t                          country_hover_delay_down;
+
     ngx_flag_t                          enabled;
 } ngx_http_cayl_loc_conf_t;
 
@@ -100,6 +106,41 @@ static ngx_command_t  ngx_http_cayl_filter_commands[] = {
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_cayl_loc_conf_t, hover_delay_down),
+      NULL },
+
+    { ngx_string("amber_country"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, country),
+      NULL },
+
+    { ngx_string("amber_country_behavior_up"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, country_behavior_up),
+      NULL },
+
+    { ngx_string("amber_country_behavior_down"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, country_behavior_down),
+      NULL },
+
+    { ngx_string("amber_country_hover_delay_up"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, country_hover_delay_up),
+      NULL },
+
+    { ngx_string("amber_country_hover_delay_down"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_cayl_loc_conf_t, country_hover_delay_down),
       NULL },
 
       ngx_null_command
@@ -309,7 +350,6 @@ ngx_http_cayl_insert_attributes(ngx_http_request_t *r,
         }
 
         if (result == CAYL_CACHE_ATTRIBUTES_NOT_FOUND) {
-            //TODO: Add a new entry to the queue, after checking that it's not in the exclude table
             ngx_http_cayl_enqueue_url(r, sqlite_handle, matches->url[i]);
         }
 
@@ -560,6 +600,15 @@ ngx_http_cayl_build_options(ngx_http_request_t *r, ngx_http_cayl_loc_conf_t *con
     options->hover_delay_down = config->hover_delay_down;
     options->hover_delay_up = config->hover_delay_up;
 
+    if (config->country.data) {
+        strncpy(options->country, (char *)config->country.data, 2);
+        options->country[config->country.len <= 2 ? config->country.len : 2] = 0;
+        options->country_behavior_up = ngx_http_cayl_convert_behavior_config(config->country_behavior_up);
+        options->country_behavior_down = ngx_http_cayl_convert_behavior_config(config->country_behavior_down);
+        options->country_hover_delay_down = config->country_hover_delay_down;
+        options->country_hover_delay_up = config->country_hover_delay_up;        
+    }
+
     return options;
 }
 
@@ -743,6 +792,11 @@ ngx_http_cayl_create_loc_conf(ngx_conf_t *cf)
     conf->behavior_down.data = NULL;
     conf->hover_delay_up = NGX_CONF_UNSET_UINT;
     conf->hover_delay_down = NGX_CONF_UNSET_UINT;
+    conf->country.data = NULL;
+    conf->country_behavior_up.data = NULL;
+    conf->country_behavior_down.data = NULL;
+    conf->country_hover_delay_up = NGX_CONF_UNSET_UINT;
+    conf->country_hover_delay_down = NGX_CONF_UNSET_UINT;
 
     /*
      * set by ngx_pcalloc():
@@ -776,6 +830,11 @@ ngx_http_cayl_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->behavior_down,        prev->behavior_down,"popup");
     ngx_conf_merge_uint_value(conf->hover_delay_up,      prev->hover_delay_up,5);
     ngx_conf_merge_uint_value(conf->hover_delay_down,    prev->hover_delay_down,2);
+    ngx_conf_merge_str_value(conf->country,              prev->country,"");
+    ngx_conf_merge_str_value(conf->country_behavior_up,          prev->country_behavior_up,"none");
+    ngx_conf_merge_str_value(conf->country_behavior_down,        prev->country_behavior_down,"popup");
+    ngx_conf_merge_uint_value(conf->country_hover_delay_up,      prev->country_hover_delay_up,5);
+    ngx_conf_merge_uint_value(conf->country_hover_delay_down,    prev->country_hover_delay_down,2);
 
     return NGX_CONF_OK;
 }
