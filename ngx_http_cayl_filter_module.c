@@ -683,11 +683,16 @@ ngx_http_cayl_find_links(ngx_http_request_t *r, ngx_buf_t *buf) {
 
 
     cur = buf->pos;
-    while ((c = memchr(cur,'\n', buf->last - cur))) {
+
+    /* Loop over every line in the buffer, and then mopup the remaining items */
+    while ((c = memchr(cur,'\n', buf->last - cur)) || (c = buf->last)) {
 
         line.data = cur;
         line.len = c - cur;
 
+        // ngx_log_debug5(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        //             "CAYL regex line (cur = %d, buf->last = %d, line.len = %d, buf->last - cur = %d: %V", 
+        //                 cur, buf->last, line.len, buf->last - cur, &line);
         do {
             rc = ngx_regex_exec(match_regex, &line, captures, ncaptures);
             if (rc < NGX_REGEX_NO_MATCHED) {
