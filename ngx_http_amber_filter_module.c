@@ -471,6 +471,9 @@ ngx_http_amber_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_st
     } else {
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                 "AMBER error enqueuing URL: %V (%d)", &url, sqlite_rc);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                       "AMBER error writing sqlite database. Make sure database file and its directory are writable");
+
     }
     ngx_http_amber_finalize_statement(r,sqlite_statement);
     return 0;
