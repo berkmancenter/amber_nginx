@@ -42,10 +42,10 @@ Specific behavior can be specified for an additional country. The country must b
 
 The behavior for the country is set using the usual directives, prefixed by ```country_```
 
-    country_amber_behavior_down <hover|popup|cache>;
-    country_amber_behavior_up <hover|popup|cache>;
-    country_amber_hover_delay_up <time in seconds>;
-    country_amber_hover_delay_down <time in seconds>;
+    amber_country_behavior_down <hover|popup|cache>;
+    amber_country_behavior_up <hover|popup|cache>;
+    amber_country_hover_delay_up <time in seconds>;
+    amber_country_hover_delay_down <time in seconds>;
 
 Specify additional content mime-types to be processed by Amber (default is text/html)
 
