@@ -129,7 +129,7 @@ int cayl_get_behavior(cayl_options_t *options, unsigned char *out, int status) {
             }
         }
         if (strlen(country_attribute)) {
-            strncat((char*)out, country_attribute, CAYL_MAX_ATTRIBUTE_STRING - strlen(out));
+            strncat((char *) out, country_attribute, CAYL_MAX_ATTRIBUTE_STRING - strlen((char *)out));
         }
     }
 
