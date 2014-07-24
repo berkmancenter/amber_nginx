@@ -26,6 +26,8 @@ typedef struct {
     ngx_uint_t                          country_hover_delay_down;
 
     ngx_flag_t                          enabled;
+    ngx_flag_t                          log_activity;
+
 } ngx_http_amber_loc_conf_t;
 
 
@@ -57,6 +59,8 @@ static ngx_int_t                ngx_http_amber_finalize_statement (ngx_http_requ
 static ngx_int_t                ngx_http_amber_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle);
 static sqlite3_stmt *           ngx_http_amber_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle);
 static ngx_int_t                ngx_http_amber_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url);
+static void                     ngx_http_amber_log_activity(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *conf);
+
 static ngx_command_t  ngx_http_amber_filter_commands[] = {
 
     { ngx_string("amber"),
@@ -143,6 +147,13 @@ static ngx_command_t  ngx_http_amber_filter_commands[] = {
       offsetof(ngx_http_amber_loc_conf_t, country_hover_delay_down),
       NULL },
 
+    { ngx_string("amber_log_activity"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_1MORE,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_amber_loc_conf_t, log_activity),
+      NULL },
+
       ngx_null_command
 };
 
@@ -192,6 +203,10 @@ ngx_http_amber_header_filter(ngx_http_request_t *r)
 
     lcf = ngx_http_get_module_loc_conf(r, ngx_http_amber_filter_module);
 
+    if (lcf->log_activity) {
+      ngx_http_amber_log_activity(r, lcf);
+    }
+
     if (!lcf->enabled
         || r->header_only
         || (r->method & NGX_HTTP_HEAD)
@@ -199,7 +214,6 @@ ngx_http_amber_header_filter(ngx_http_request_t *r)
         || r->headers_out.status == NGX_HTTP_NO_CONTENT
         || ngx_http_test_content_type(r, &lcf->types) == NULL)
     {
-
         return ngx_http_next_header_filter(r);
     }
 
@@ -437,6 +451,71 @@ ngx_http_amber_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle) {
     }
     return sqlite_rc;
 }
+
+/* 
+ * Log a view of a cached page 
+ */
+static void
+ngx_http_amber_log_activity(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *config) {
+
+/* The URL is of the form /amber/cache/0c0ee301be842620cb198cf63df5dd79/0c0ee301be842620cb198cf63df5dd79 */
+
+  char *uri = ngx_palloc(r->pool,(r->uri.len + 1) * sizeof(char));
+  strncpy(uri, (char *)r->uri.data, r->uri.len);
+  uri[r->uri.len] = 0;
+
+  /* Get the portion of the URI that corresponds to the cache id */
+  char *pos = strrchr(uri, '/');
+  if (pos) {
+    pos++;
+    ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "AMBER activity logging : %s", pos);
+
+    sqlite3 *sqlite_handle = ngx_http_amber_get_database(r,config->db);
+    if (!sqlite_handle) {
+        return;
+    }
+
+    sqlite3_stmt *sqlite_statement;
+    char *query_template = "INSERT OR REPLACE INTO amber_activity (id, date, views) VALUES (?1, ?2, COALESCE ((SELECT views+1 from amber_activity where id = ?1), 1));";
+    const char *query_tail;
+    ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "AMBER error creating sqlite prepared statement to update activity (%d)", sqlite_rc);
+        return;
+    }
+
+    sqlite_rc = sqlite3_bind_text(sqlite_statement, 1, pos, strlen(pos), SQLITE_STATIC);
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "AMBER error binding sqlite parameter: %s (%d)", pos, sqlite_rc);
+        ngx_http_amber_finalize_statement(r,sqlite_statement);
+        return;
+    }
+
+    sqlite_rc = sqlite3_bind_int(sqlite_statement, 2, time(NULL));
+    if (sqlite_rc != SQLITE_OK) {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "AMBER error binding sqlite parameter: %s (%d)", "time()", sqlite_rc);
+        ngx_http_amber_finalize_statement(r,sqlite_statement);
+        return;
+    }
+
+    sqlite_rc = sqlite3_step(sqlite_statement);
+    if (sqlite_rc == SQLITE_DONE) { /* No data returned */
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "AMBER saved activity id: %s", pos);
+    } else {
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                "AMBER error saving activity: %s (%d)", pos, sqlite_rc);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                       "AMBER error writing sqlite database. Make sure database file and its directory are writable");
+    }
+    ngx_http_amber_finalize_statement(r,sqlite_statement);
+  }
+
+}
+
 
 static ngx_int_t
 ngx_http_amber_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url) {
@@ -795,6 +874,7 @@ ngx_http_amber_create_loc_conf(ngx_conf_t *cf)
     }
 
     conf->enabled = NGX_CONF_UNSET;
+    conf->log_activity = NGX_CONF_UNSET;
     conf->db.data = NULL;
     conf->behavior_up.data = NULL;
     conf->behavior_down.data = NULL;
@@ -843,6 +923,7 @@ ngx_http_amber_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_str_value(conf->country_behavior_down,        prev->country_behavior_down,"popup");
     ngx_conf_merge_uint_value(conf->country_hover_delay_up,      prev->country_hover_delay_up,5);
     ngx_conf_merge_uint_value(conf->country_hover_delay_down,    prev->country_hover_delay_down,2);
+    ngx_conf_merge_off_value(conf->log_activity,        prev->log_activity,0);
 
     return NGX_CONF_OK;
 }
