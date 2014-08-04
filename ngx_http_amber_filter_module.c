@@ -535,7 +535,6 @@ ngx_http_amber_cache_delivery(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *
 
     /* Second, we will get the content-type of the item from the database, in case it's not text/html */
 
-    const char *mimetype;
     const char *mimetype_tmp;
 
     sqlite_statement = ngx_http_amber_get_content_type_lookup(r,sqlite_handle);
