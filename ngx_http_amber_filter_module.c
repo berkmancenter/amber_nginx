@@ -554,9 +554,6 @@ ngx_http_amber_cache_delivery(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *
 
     } else if (sqlite_rc == SQLITE_ROW) {
         mimetype_tmp = (const char *) sqlite3_column_text(sqlite_statement,0);
-        /* Copy the location string, since it gets clobbered when the
-           sqlite objects are closed */
-        mimetype = ngx_palloc(r->pool,(strlen(mimetype_tmp) + 1) * sizeof(char));
         strncpy((char *)r->headers_out.content_type.data, mimetype_tmp, strlen(mimetype_tmp));
         r->headers_out.content_type.len = strlen(mimetype_tmp);
     } else {
