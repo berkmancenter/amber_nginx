@@ -23,7 +23,7 @@ int amber_build_attribute(amber_options_t *options, unsigned char *out, char *lo
     char date_string[AMBER_MAX_DATE_STRING];
 
     int rc = amber_get_behavior(options, behavior, status);
-    if (!rc) {
+    if (!rc && (strlen((char*)behavior) > 0)) {
         struct tm *timeinfo = localtime(&date);
         strftime(date_string,AMBER_MAX_DATE_STRING,"%FT%T%z",timeinfo);
         snprintf((char *)out,
