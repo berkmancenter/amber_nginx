@@ -5,7 +5,7 @@
 The Amber plugin consists of two components:
 
 * An nginx module that identifies pages to be cached, schedules them for caching, and links to cached pages
-* A caching script that run periodically to cache new pages and check on the status of existing pages
+* A caching script that runs periodically to cache new pages and check on the status of existing pages
 
 ## System Requirements ##
 
@@ -42,7 +42,7 @@ More coming soon....
 
 ## Configuration - Nginx plugin ##
 
-The Amber nginx plugin uses the following configuration directives. See the provided cayl.conf for examples. 
+The Amber nginx plugin uses the following configuration directives. See the provided amber.conf for examples. 
 
 Enable Amber
 
