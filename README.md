@@ -56,7 +56,7 @@ Update permissions
 
     sudo chgrp -R www-data /var/lib/amber /usr/local/nginx/html/amber
     sudo chmod -R g+w /var/lib/amber /usr/local/nginx/html/amber/cache
-    sudo chmod +x /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-cache.sh /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-check.sh
+    sudo chmod +x /usr/local/src/robustness_common/deploy/nginxg/vagrant/cron-cache.sh /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-check.sh
     sudo chown www-data /var/log/amber
     sudo chgrp www-data /var/log/amber
 
@@ -121,5 +121,5 @@ Display Farsi version of Javascript and CSS
 
 ## Configuration - Caching ##
 
-The caching process is configured through ```amber.ini``` - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/robustness_common/blob/master/src/amber.ini) 
+The caching process is configured through ```amber.ini``` - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/robustness_common/blob/master/src/amber-nginx.ini) 
 
