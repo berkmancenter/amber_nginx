@@ -30,7 +30,7 @@ Get code
 
 Build nginx
 
-    curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
+    wget http://nginx.org/download/nginx-1.6.0.tar.gz
     tar xzf nginx-1.6.0.tar.gz
     cd nginx-1.6.0
     ./configure --add-module=../ngx_http_substitutions_filter_module --add-    module=../robustness_nginx
