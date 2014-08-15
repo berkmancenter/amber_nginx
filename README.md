@@ -22,23 +22,54 @@ Install prerequisites
     sudo apt-get -y install git make curl libpcre3 libpcre3-dev sqlite3 libsqlite3-dev php5-cli php5-common php5-sqlite php5-curl php5-fpm zlib1g-dev
 
 Get code
-
+    
     cd /usr/local/src
-    git clone https://github.com/berkmancenter/robustness_common.git
-    git clone https://github.com/berkmancenter/robustness_nginx.git
-    git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
+    sudo git clone https://github.com/berkmancenter/robustness_common.git
+    sudo git clone https://github.com/berkmancenter/robustness_nginx.git
+    sudo git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
 
 Build nginx
 
-    wget http://nginx.org/download/nginx-1.6.0.tar.gz
-    tar xzf nginx-1.6.0.tar.gz
+    sudo wget http://nginx.org/download/nginx-1.6.0.tar.gz
+    sudo tar xzf nginx-1.6.0.tar.gz
     cd nginx-1.6.0
-    ./configure --add-module=../ngx_http_substitutions_filter_module --add-    module=../robustness_nginx
-    make
-    sudo make install
+    sudo ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../robustness_nginx
+    sudo make && sudo make install
 
-More coming soon....
+Create amber directories and install supporting files
 
+    sudo mkdir /var/lib/amber /usr/local/nginx/html/amber /usr/local/nginx/html/amber/cache
+    sudo touch /var/log/amber
+    sudo ln -s /usr/local/src/robustness_common/src/admin /usr/local/nginx/html/amber/admin
+    sudo cp -r /usr/local/src/robustness_common/src/css /usr/local/src/robustness_common/src/js /usr/local/nginx/html/amber
+    sudo cp /usr/local/src/robustness_nginx/amber.conf /usr/local/nginx/conf
+
+Create amber database and cron jobs
+
+    sudo sqlite3 /var/lib/amber/amber.db < ../robustness_common/src/amber.sql
+    sudo cat > /etc/cron.d/amber << EOF
+    */5 * * * * www-data /bin/sh /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-cache.sh --ini=/usr/local/src/robustness_common/src/amber-nginx.ini 2>> /var/log/amber >> /var/log/amber
+    15 3 * * *  www-data /bin/sh /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-check.sh --ini=/usr/local/src/robustness_common/src/amber-nginx.ini 2>> /var/log/amber >> /var/log/amber
+    EOF
+
+Update permissions
+
+    sudo chgrp -R www-data /var/lib/amber /usr/local/nginx/html/amber
+    sudo chmod -R g+w /var/lib/amber /usr/local/nginx/html/amber/cache
+    sudo chmod +x /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-cache.sh /usr/local/src/robustness_common/deploy/nginx/vagrant/cron-check.sh
+    sudo chown www-data /var/log/amber
+    sudo chgrp www-data /var/log/amber
+
+Edit nginx.conf to enable amber. Edit the root location directive to include amber.conf
+
+    location / {
+        [...]
+        include amber.conf
+    }
+
+Start nginx
+
+    sudo /usr/local/nginx/sbin/nginx
 
 ## Configuration - Nginx plugin ##
 
