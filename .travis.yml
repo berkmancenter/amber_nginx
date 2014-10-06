@@ -4,12 +4,12 @@ before_install:
   - sudo apt-get update > /dev/null
 
 install:
-  - git clone https://github.com/berkmancenter/robustness_nginx.git
+  - git clone https://github.com/berkmancenter/amber_nginx.git
   - git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
   - tar xzf nginx-1.6.0.tar.gz
   - cd nginx-1.6.0
 
 script: 
-  - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../robustness_nginx && make
+  - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx && make
   
