@@ -1,4 +1,4 @@
-!/bin/bash
+#!/bin/bash
 
 sudo apt-get update
 sudo apt-get -y install git make curl libpcre3 libpcre3-dev sqlite3 libsqlite3-dev php5-cli php5-common php5-sqlite php5-curl php5-fpm zlib1g-dev
@@ -8,7 +8,7 @@ sudo git clone https://github.com/berkmancenter/amber_common.git
 #sudo git clone https://github.com/berkmancenter/amber_nginx.git
 sudo git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
 
-if [ "$1" == "-skip-nginx"]
+if [ "$1" == "-skip-nginx-install" ]
 then
 	echo "NGINX must be recompiled to complete installation. This can be performed with the following commands:"
 echo "sudo wget http://nginx.org/download/nginx-1.6.0.tar.gz"
