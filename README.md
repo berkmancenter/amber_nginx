@@ -23,7 +23,7 @@ The Amber module consists of two components:
 * A **caching script** that runs periodically to cache new pages and check on the status of existing pages
 
 
-Ensure you have GIT installed. If not, you can install (Ubuntu) with through apt-get
+Ensure you have GIT installed. If not, you can install (Ubuntu) with through apt-get.
     
     sudo apt-get install git
 
@@ -35,7 +35,7 @@ Get code.
 Install amber using the amber-install.sh script. This will download the prerequisites, create the database and configure the paths for the amber module. Use the "-skip-nginx-install" option to skip the download and installation of a new instance of nginx.
 
     cd /usr/local/src/amber_nginx
-    sudo ./amber-install
+    sudo ./amber-install.sh
 
 Edit nginx.conf to enable amber. Edit the root location directive to include amber.conf
 
