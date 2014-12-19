@@ -10,12 +10,7 @@ sudo git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
 
 if [ "$1" == "-skip-nginx-install" ]
 then
-	echo "NGINX must be recompiled to complete installation. This can be performed with the following commands:"
-echo "sudo wget http://nginx.org/download/nginx-1.6.0.tar.gz"
-echo "sudo tar xzf nginx-1.6.0.tar.gz"
-echo "cd nginx-1.6.0"
-echo "sudo ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx"
-echo "sudo make && sudo make install"
+	echo "Skipping NGINX install!"
 
 else
 sudo wget http://nginx.org/download/nginx-1.6.0.tar.gz
@@ -42,3 +37,13 @@ sudo chmod -R g+w /var/lib/amber /usr/local/nginx/html/amber/cache
 sudo chmod +x /usr/local/src/amber_common/deploy/nginx/vagrant/cron-cache.sh /usr/local/src/amber_common/deploy/nginx/vagrant/cron-check.sh
 sudo chown www-data /var/log/amber
 sudo chgrp www-data /var/log/amber
+
+if [ "$1" == "-skip-nginx-install" ]
+then
+	echo "NGINX must be recompiled to complete installation. This can be performed with the following commands:"
+echo "sudo wget http://nginx.org/download/nginx-1.6.0.tar.gz"
+echo "sudo tar xzf nginx-1.6.0.tar.gz"
+echo "cd nginx-1.6.0"
+echo "sudo ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx"
+echo "sudo make && sudo make install"
+fi
