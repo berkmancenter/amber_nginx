@@ -8,7 +8,7 @@ sudo git clone https://github.com/berkmancenter/amber_common.git
 #sudo git clone https://github.com/berkmancenter/amber_nginx.git
 sudo git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
 
-if[ "$1" == "skip-nginx"]
+if [ "$1" == "-skip-nginx"]
 then
 	echo "NGINX must be recompiled to complete installation. This can be performed with the following commands:"
 echo "sudo wget http://nginx.org/download/nginx-1.6.0.tar.gz"
