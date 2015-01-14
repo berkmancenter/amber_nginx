@@ -1,11 +1,12 @@
-# Amber nginx plugin #
+# Amber nginx module #
 
 [![Build Status](https://travis-ci.org/berkmancenter/amber_nginx.png?branch=master)](https://travis-ci.org/berkmancenter/amber_nginx)
 
-The Amber plugin consists of two components:
+This is Amber, an Nginx module that provides an alternative route to information when content would otherwise be unavailable. Amber is useful for virtually any organization or individual that has an interest in preserving the content to which their website links.
 
-* An nginx module that identifies pages to be cached, schedules them for caching, and links to cached pages
-* A caching script that runs periodically to cache new pages and check on the status of existing pages
+If you’d like to join the private beta, we welcome critiques and feedback as we progress through testing. As part of the beta, the Berkman Center will incorporate your suggestions to see what works, what doesn't, and what can be improved. You will also receive personal help and support from our team of devs and sysadmins in running Amber on Nginx.
+
+Indicate your interest by contacting amber@cyber.law.harvard.edu.
 
 ## System Requirements ##
 
@@ -15,6 +16,13 @@ The Amber plugin consists of two components:
 * php-fpm
 
 ## Installation (Ubuntu) ##
+
+The Amber module consists of two components:
+
+* An **Nginx module** that identifies pages to be cached, schedules them for caching, and links to cached pages
+* A **caching script** that runs periodically to cache new pages and check on the status of existing pages
+
+
 
 Install prerequisites
 
@@ -74,9 +82,9 @@ Start nginx
 
     sudo /usr/local/nginx/sbin/nginx
 
-## Configuration - Nginx plugin ##
+## Configuration - Nginx module ##
 
-The Amber nginx plugin uses the following configuration directives. See the provided amber.conf for examples. 
+The Amber nginx module uses the following configuration directives. See the provided amber.conf for examples. 
 
 Enable Amber
 
@@ -148,7 +156,7 @@ For improved security, you may want to have cached content served from a separat
 
     }
 
-## Configuration - Caching ##
+## Configuration - Caching script ##
 
 The caching process is configured through ```amber.ini``` - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/amber_common/blob/master/src/amber-nginx.ini) 
 
