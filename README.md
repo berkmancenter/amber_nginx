@@ -43,6 +43,8 @@ Create amber directories and install supporting files
     sudo ln -s /usr/local/src/amber_common/src/admin /usr/local/nginx/html/amber/admin
     sudo cp -r /usr/local/src/amber_common/src/css /usr/local/src/amber_common/src/js /usr/local/nginx/html/amber
     sudo cp /usr/local/src/amber_nginx/amber.conf /usr/local/nginx/conf
+    sudo cp /usr/local/src/amber_nginx/amber-cache.conf /usr/local/nginx/conf
+
 
 Create amber database and cron jobs
 
@@ -60,10 +62,11 @@ Update permissions
     sudo chown www-data /var/log/amber
     sudo chgrp www-data /var/log/amber
 
-Edit nginx.conf to enable amber. Edit the root location directive to include amber.conf
+Edit nginx.conf to enable amber. Edit the root location directive to include amber.conf and amber-cache.conf
 
     location / {
         [...]
+        include amber-cache.conf
         include amber.conf
     }
 
@@ -118,6 +121,32 @@ Insert Javascript and CSS required for Amber to function. `Required`
 Display Farsi version of Javascript and CSS 
 
     subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';
+
+## Configuration - Sandboxing ##
+
+For improved security, you may want to have cached content served from a separate domain. Here is a sample configuration where the site is running at www.amber.com, while cached content is served from sandbox.amber.com.
+
+    http {
+        [...]
+        server {
+            server_name sandbox.amber.com;
+            root html;
+            include amber-cache.conf;
+        }
+        server {
+            server_name www.amber.com;
+            root html;
+            location /amber/cache {
+                return 301 $scheme://sandbox.amber.org$request_uri;
+            }
+            location / {
+                include amber.conf;
+                [...]
+            }
+        }
+
+
+    }
 
 ## Configuration - Caching ##
 
