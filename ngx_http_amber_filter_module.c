@@ -4,6 +4,7 @@
 #include <ngx_http_variables.h>
 #include <nginx.h>
 #include <sqlite3.h>
+#include <time.h>
 #include "amber_utils.h"
 
 #define AMBER_CACHE_ATTRIBUTES_ERROR -1
@@ -61,7 +62,7 @@ static ngx_int_t                ngx_http_amber_finalize_statement (ngx_http_requ
 static ngx_int_t                ngx_http_amber_close_database (ngx_http_request_t *r, sqlite3 *sqlite_handle);
 static sqlite3_stmt *           ngx_http_amber_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle);
 static ngx_int_t                ngx_http_amber_enqueue_url(ngx_http_request_t *r, sqlite3 *sqlite_handle, ngx_str_t url);
-static sqlite3_stmt *           ngx_http_amber_get_content_type_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle);
+static sqlite3_stmt *           ngx_http_amber_get_content_type_date_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle);
 static void                     ngx_http_amber_cache_delivery(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *conf);
 
 static ngx_command_t  ngx_http_amber_filter_commands[] = {
@@ -436,10 +437,10 @@ ngx_http_amber_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle) {
 }
 
 static sqlite3_stmt *
-ngx_http_amber_get_content_type_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle) {
+ngx_http_amber_get_content_type_date_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle) {
     sqlite3_stmt *sqlite_statement;
     const char *query_tail;
-    char *query_template = "SELECT type FROM amber_cache WHERE id = ?";
+    char *query_template = "SELECT type, date FROM amber_cache WHERE id = ?";
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         sqlite3_close(sqlite_handle);
@@ -537,9 +538,7 @@ ngx_http_amber_cache_delivery(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *
 
     /* Second, we will get the content-type of the item from the database, in case it's not text/html */
 
-    const char *mimetype_tmp;
-
-    sqlite_statement = ngx_http_amber_get_content_type_lookup(r,sqlite_handle);
+    sqlite_statement = ngx_http_amber_get_content_type_date_lookup(r,sqlite_handle);
     if (!sqlite_statement) {
         ngx_http_amber_close_database(r,sqlite_handle);
         return;
@@ -555,9 +554,33 @@ ngx_http_amber_cache_delivery(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *
     if (sqlite_rc == SQLITE_DONE) { /* No data returned */
 
     } else if (sqlite_rc == SQLITE_ROW) {
-        mimetype_tmp = (const char *) sqlite3_column_text(sqlite_statement,0);
+        /* Update the mime-type */
+        const char *mimetype_tmp = (const char *) sqlite3_column_text(sqlite_statement,0);
         strncpy((char *)r->headers_out.content_type.data, mimetype_tmp, strlen(mimetype_tmp));
         r->headers_out.content_type.len = strlen(mimetype_tmp);
+
+        /* Set the Memento-Datetime header */
+        const int MEMENTO_TIME_HEADER_SIZE = 40;
+        long cache_date = sqlite3_column_int(sqlite_statement, 1);
+        struct tm * t = gmtime((const time_t*) &cache_date);
+        if (!t) {
+          ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "AMBER error calculating Memento-Datetime response header");
+        } else {
+          char *memento_time = ngx_palloc(r->pool, MEMENTO_TIME_HEADER_SIZE * sizeof(char));
+          strftime(memento_time, MEMENTO_TIME_HEADER_SIZE * sizeof(char), "%a, %d %b %Y %H:%M:%S %Z", t);
+
+          ngx_table_elt_t *h;
+          h = ngx_list_push(&r->headers_out.headers);
+          if (h == NULL) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "AMBER error adding Memento-Datetime response header");
+          } else {
+            h->hash = 1;
+            h->key.len = sizeof("Memento-Datetime") - 1;
+            h->key.data = (u_char *) "Memento-Datetime";
+            h->value.len = strlen(memento_time);
+            h->value.data = (u_char *) memento_time;      
+          }
+        }
     } else {
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                "AMBER error executing sqlite statement: (%d)", sqlite_rc);
