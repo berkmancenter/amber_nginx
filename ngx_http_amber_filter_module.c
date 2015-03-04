@@ -1,6 +1,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include <ngx_http_variables.h>
 #include <nginx.h>
 #include <sqlite3.h>
 #include "amber_utils.h"
@@ -53,6 +54,7 @@ static ngx_int_t ngx_http_amber_filter_init(ngx_conf_t *cf);
 static ngx_http_amber_matches_t *ngx_http_amber_find_links(ngx_http_request_t *r, ngx_buf_t *buf);
 static amber_options_t *         ngx_http_amber_build_options(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *config);
 static void                     ngx_http_amber_insert_attributes(ngx_http_request_t *r, ngx_buf_t *buf, ngx_http_amber_matches_t *matches);
+static char *                   ngx_http_amber_get_absolute_url(ngx_http_request_t *r, char *location);
 static ngx_int_t                ngx_http_amber_get_attribute(ngx_http_request_t *r, sqlite3 *sqlite_handle, sqlite3_stmt *sqlite_statement, ngx_str_t url, ngx_str_t *result);
 static sqlite3 *                ngx_http_amber_get_database(ngx_http_request_t *r, ngx_str_t db_path);
 static ngx_int_t                ngx_http_amber_finalize_statement (ngx_http_request_t *r, sqlite3_stmt *sqlite_statement);
@@ -688,9 +690,9 @@ ngx_http_amber_get_attribute(ngx_http_request_t *r,
         amber_config = ngx_http_get_module_loc_conf(r, ngx_http_amber_filter_module);
 
         amber_options_t *options = ngx_http_amber_build_options(r,amber_config);
-
         result->data = ngx_palloc(r->pool,AMBER_MAX_ATTRIBUTE_STRING);
-        int rc = amber_build_attribute(options, result->data, location, status, date);
+        char *absolute_url = ngx_http_amber_get_absolute_url(r,location);
+        int rc = amber_build_attribute(options, result->data, absolute_url, status, date);
         if (rc) {
             ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                 "AMBER error gnerating attribute string (%d)", rc);
@@ -700,6 +702,44 @@ ngx_http_amber_get_attribute(ngx_http_request_t *r,
     }
 
     return AMBER_CACHE_ATTRIBUTES_FOUND;
+}
+
+/* Add the protocol, hostname, and port to a URL */
+static char * 
+ngx_http_amber_get_absolute_url(ngx_http_request_t *r, char *location) {
+
+  ngx_str_t server_name_variable_name = ngx_string("server_name");
+  ngx_int_t server_name_hash = ngx_hash_key (server_name_variable_name.data, server_name_variable_name.len);
+  ngx_http_variable_value_t * server_name = ngx_http_get_variable(r, &server_name_variable_name, server_name_hash);
+
+  ngx_str_t server_port_variable_name = ngx_string("server_port");
+  ngx_int_t server_port_hash = ngx_hash_key (server_port_variable_name.data, server_port_variable_name.len);
+  ngx_http_variable_value_t * server_port = ngx_http_get_variable(r, &server_port_variable_name, server_port_hash);
+
+  ngx_str_t https_variable_name = ngx_string("https");
+  ngx_int_t https_hash = ngx_hash_key (https_variable_name.data, https_variable_name.len);
+  ngx_http_variable_value_t * https = ngx_http_get_variable(r, &https_variable_name, https_hash);
+
+  int len = server_name->len + server_port->len + 12 + strlen(location);  /* 12 for 'https://' and ':' and '/' */
+  if (https->len) {
+    len++;
+  }  
+  char *result = ngx_palloc(r->pool,(len + strlen(location) + 1) * sizeof(char));
+  result[0] = 0;
+
+  if (https->len) {
+    strncat(result, "https://", 8);
+  } else {
+    strncat(result, "http://", 7);
+  }
+  strncat(result, (char *)server_name->data, server_name->len);
+  if (server_port->len) {
+    strncat(result, ":", 1);
+    strncat(result, (char *)server_port->data, server_port->len);
+  }
+  strncat(result, "/", 1);
+  strncat(result, location, strlen(location));
+  return result;
 }
 
 static int
