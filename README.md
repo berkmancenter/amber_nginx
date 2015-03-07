@@ -152,8 +152,6 @@ For improved security, you may want to have cached content served from a separat
                 [...]
             }
         }
-
-
     }
 
 ## Configuration - Caching script ##
