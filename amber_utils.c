@@ -4,7 +4,7 @@
 #include "amber_utils.h"
 
 
-#define AMBER_MAX_BEHAVIOR_STRING 20
+#define AMBER_MAX_BEHAVIOR_STRING 100
 #define AMBER_MAX_DATE_STRING 30
 
 /* Create a string containing attributes to be added to the HREF
