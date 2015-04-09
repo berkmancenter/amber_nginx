@@ -732,7 +732,7 @@ ngx_http_amber_get_attribute(ngx_http_request_t *r,
 static char * 
 ngx_http_amber_get_absolute_url(ngx_http_request_t *r, char *location) {
 
-  ngx_str_t server_name_variable_name = ngx_string("server_name");
+  ngx_str_t server_name_variable_name = ngx_string("host");
   ngx_int_t server_name_hash = ngx_hash_key (server_name_variable_name.data, server_name_variable_name.len);
   ngx_http_variable_value_t * server_name = ngx_http_get_variable(r, &server_name_variable_name, server_name_hash);
 
