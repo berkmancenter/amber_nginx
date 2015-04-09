@@ -56,6 +56,7 @@ static ngx_http_amber_matches_t *ngx_http_amber_find_links(ngx_http_request_t *r
 static amber_options_t *         ngx_http_amber_build_options(ngx_http_request_t *r, ngx_http_amber_loc_conf_t *config);
 static void                     ngx_http_amber_insert_attributes(ngx_http_request_t *r, ngx_buf_t *buf, ngx_http_amber_matches_t *matches);
 static char *                   ngx_http_amber_get_absolute_url(ngx_http_request_t *r, char *location);
+static size_t                   ngx_http_amber_get_maximum_attribute_size(ngx_http_request_t *r);
 static ngx_int_t                ngx_http_amber_get_attribute(ngx_http_request_t *r, sqlite3 *sqlite_handle, sqlite3_stmt *sqlite_statement, ngx_str_t url, ngx_str_t *result);
 static sqlite3 *                ngx_http_amber_get_database(ngx_http_request_t *r, ngx_str_t db_path);
 static ngx_int_t                ngx_http_amber_finalize_statement (ngx_http_request_t *r, sqlite3_stmt *sqlite_statement);
@@ -273,8 +274,8 @@ ngx_http_amber_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
             /* The new buffer needs to be bigger, since we're adding HTML
              * attributes */
-            int AMBER_ATTRIBUTES_MAX_LENGTH = 200 * sizeof(u_char);
-            int buf_size = (AMBER_ATTRIBUTES_MAX_LENGTH  * matches->count) + cl->buf->last - cl->buf->pos;
+            int amber_attributes_size = ngx_http_amber_get_maximum_attribute_size(r) * sizeof(u_char);
+            int buf_size = (amber_attributes_size  * matches->count) + cl->buf->last - cl->buf->pos;
             buf->pos = ngx_palloc(r->pool,buf_size);
             buf->start = buf->pos;
             buf->end = buf->pos + buf_size;
@@ -764,6 +765,17 @@ ngx_http_amber_get_absolute_url(ngx_http_request_t *r, char *location) {
   strncat(result, location, strlen(location));
   return result;
 }
+
+/* Get the maximum possible size for the attributes that will be added to a link */
+static size_t 
+ngx_http_amber_get_maximum_attribute_size(ngx_http_request_t *r) {
+    size_t result = 0;
+    result += strlen(" data-versionurl='X' data-versiondate='0000-00-00T00:00:00+0000' data-amber-behavior='down hover:000,zz down hover:000' ");
+    result += strlen(ngx_http_amber_Pget_absolute_url(r, "amber/cache/12345678901234567890123456789012/"));
+    result += 30; /* Additional padding */ 
+    return result;
+}                                                    
+
 
 static int
 ngx_http_amber_convert_behavior_config(ngx_str_t s) {
