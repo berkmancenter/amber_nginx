@@ -46,13 +46,13 @@ Build nginx
 
 Create amber directories and install supporting files
 
-    sudo mkdir /var/lib/amber /usr/local/nginx/html/amber /usr/local/nginx/html/amber/cache
+    sudo mkdir /var/lib/amber /usr/local/nginx/html/amber /usr/local/nginx/html/amber/cache /etc/amber
     sudo touch /var/log/amber
     sudo ln -s /usr/local/src/amber_common/src/admin /usr/local/nginx/html/amber/admin
     sudo cp -r /usr/local/src/amber_common/src/css /usr/local/src/amber_common/src/js /usr/local/nginx/html/amber
+    sudo cp /usr/local/src/amber_common/src/amber-nginx.ini /etc/amber
     sudo cp /usr/local/src/amber_nginx/amber.conf /usr/local/nginx/conf
     sudo cp /usr/local/src/amber_nginx/amber-cache.conf /usr/local/nginx/conf
-
 
 Create amber database and cron jobs
 
