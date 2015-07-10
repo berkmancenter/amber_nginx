@@ -2,8 +2,7 @@ language: c
 sudo: false
 
 install:
-  - curl -L http://cpanmin.us | perl - --sudo App::cpanminus  
-  - cpanm install Test::Nginx
+  - perl -MCPAN -Mlocal::lib=~/perl5 -e 'my $c = "CPAN::HandleConfig"; $c->load(doit => 1, autoconfig => 1); $c->edit(prerequisites_policy => "follow"); $c->edit(build_requires_install_policy => "yes"); $c->commit'
   - git clone https://github.com/berkmancenter/amber_nginx.git
   - git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
@@ -14,5 +13,5 @@ script:
   - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx && make
   - cd ../amber_nginx
   - ls -l
-  - PATH=../objs:$PATH prove -r t
+  - PATH=../objs:$PATH prove -r t -I ~/perl5
   
