@@ -1,7 +1,5 @@
 language: c
-
-before_install:
-  - sudo apt-get update > /dev/null
+sudo: false
 
 install:
   - git clone https://github.com/berkmancenter/amber_nginx.git
@@ -12,4 +10,5 @@ install:
 
 script: 
   - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx && make
+
   
