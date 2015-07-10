@@ -10,5 +10,5 @@ install:
 
 script: 
   - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx && make
-  - ./test.sh
+  - PATH=objs:$PATH prove -r ../amber_nginx/t
   
