@@ -13,10 +13,9 @@ install:
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
   - tar xzf nginx-1.6.0.tar.gz
   - cd nginx-1.6.0
-  - find /home/travis -name Socket.pm
-  - ls -lR /home/travis/perl5
 
 script: 
   - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=.. && make
-  - PATH=objs:$PATH prove -r ../t -I ~/perl5/lib/perl5
+  - cd ..
+  - PATH=nginx-1.6.0/objs:$PATH prove -r t -I ~/perl5/lib/perl5
   
