@@ -1,8 +1,14 @@
 language: c
 sudo: false
 
+addons:
+  apt:
+    packages:
+    - cpanminus
+    - perl
+
 install:
-  - perl -MCPAN -Mlocal::lib=~/perl5 -e 'my $c = "CPAN::HandleConfig"; $c->load(doit => 1, autoconfig => 1); $c->edit(prerequisites_policy => "follow"); $c->edit(build_requires_install_policy => "yes"); $c->commit'
+  - cpanm --quiet --notest --skip-satisfied Test::Nginx
   - git clone https://github.com/berkmancenter/amber_nginx.git
   - git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
