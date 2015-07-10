@@ -9,6 +9,7 @@ addons:
 
 install:
   - cpanm --quiet --notest --skip-satisfied Test::Nginx
+  - cpanm --quiet --notest --skip-satisfied Test::Nginx::Socket
   - git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
   - tar xzf nginx-1.6.0.tar.gz
