@@ -2,7 +2,8 @@ language: c
 sudo: false
 
 install:
-  - cpan install Test::Nginx
+  - curl -L http://cpanmin.us | perl - --sudo App::cpanminus  
+  - cpanm install Test::Nginx
   - git clone https://github.com/berkmancenter/amber_nginx.git
   - git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
