@@ -8,16 +8,15 @@ addons:
     - perl
 
 install:
-  - cpanm --quiet --notest --skip-satisfied Test::Nginx
-  - git clone https://github.com/berkmancenter/amber_nginx.git
+  - cpanm --quiet --notest --skip-satisfied Test::nginx
   - git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
   - curl http://nginx.org/download/nginx-1.6.0.tar.gz > nginx-1.6.0.tar.gz
   - tar xzf nginx-1.6.0.tar.gz
   - cd nginx-1.6.0
 
 script: 
-  - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=../amber_nginx && make
-  - cd ../amber_nginx
+  - ./configure --add-module=../ngx_http_substitutions_filter_module --add-module=.. && make
+  - cd ..
   - ls -l
   - PATH=../objs:$PATH prove -r t -I ~/perl5
   
