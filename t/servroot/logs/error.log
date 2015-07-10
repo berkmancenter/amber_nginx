@@ -1,0 +1,10 @@
+2015/07/10 14:58:21 [notice] 69927#0: using the "kqueue" event method
+2015/07/10 14:58:21 [notice] 69927#0: nginx/1.4.7
+2015/07/10 14:58:21 [notice] 69927#0: OS: Darwin 14.4.0
+2015/07/10 14:58:21 [notice] 69927#0: hw.ncpu: 8
+2015/07/10 14:58:21 [notice] 69927#0: net.inet.tcp.sendspace: 131072
+2015/07/10 14:58:21 [notice] 69927#0: kern.ipc.somaxconn: 128
+2015/07/10 14:58:21 [notice] 69927#0: getrlimit(RLIMIT_NOFILE): 2560:9223372036854775807
+2015/07/10 14:58:21 [notice] 69928#0: signal 3 (SIGQUIT) received, shutting down
+2015/07/10 14:58:21 [info] 69928#0: kevent() failed (4: Interrupted system call)
+2015/07/10 14:58:21 [notice] 69928#0: exit
