@@ -35,7 +35,7 @@ GET /amber/cache/XYZ
 --- response_body
 I am the walrus
 --- response_headers
-Memento-Datetime: Thu, 01 Jan 1970 00:01:39 UTC
+Memento-Datetime: Thu, 01 Jan 1970 00:01:39 GMT
 --- no_error_log
 AMBER error
 
