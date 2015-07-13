@@ -59,7 +59,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='up popup' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='up popup' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -86,7 +86,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='up hover:4' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='up hover:4' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -113,7 +113,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='down hover:3' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='down hover:3' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -140,7 +140,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='down popup' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='down popup' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -169,7 +169,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='down hover:3,IR down popup' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='down hover:3,IR down popup' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -200,7 +200,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='down hover:3,IR down hover:9' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='down hover:3,IR down hover:9' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -230,7 +230,7 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='up hover:3,IR up hover:1' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='up hover:3,IR up hover:1' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error
@@ -260,7 +260,61 @@ Welcome to the <a href="http://dog.com">doghouse</a>
 GET /foo/foo.html
 --- response_body
 <html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
-Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1969-12-31T19:01:39-0500' data-amber-behavior='up hover:3,IR up popup' href="http://dog.com">doghouse</a>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='up hover:3,IR up popup' href="http://dog.com">doghouse</a>
+</body></html>
+--- no_error_log
+AMBER error
+
+=== TEST 10: Test a file with a link, with single-quotes 
+--- init
+system("cp t/test.db /tmp/amber_nginx_test_links_10.db");
+system("echo \"insert into amber_cache values('XYZ', 'http://dog.com', 'cache/XYZ', 99, 'text/html', 100);\" | sqlite3 /tmp/amber_nginx_test_links_10.db");
+system("echo \"insert into amber_check values('XYZ', 'http://dog.com', 1, 100000, 200000, '');\" | sqlite3 /tmp/amber_nginx_test_links_10.db");
+--- config
+location /foo {
+	amber on;
+	amber_db /tmp/amber_nginx_test_links_10.db;
+	amber_behavior_up popup;
+
+	subs_filter '</head>' '<script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head>';
+}
+--- user_files
+>>> foo/foo.html
+<html><head><title>Doghouse</title></head><body>
+Welcome to the <a href='http://dog.com'>doghouse</a>
+</body></html>
+--- request
+GET /foo/foo.html
+--- response_body
+<html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
+Welcome to the <a data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='up popup' href='http://dog.com'>doghouse</a>
+</body></html>
+--- no_error_log
+AMBER error
+
+=== TEST 11: Test a file with a link, with additional attributes 
+--- init
+system("cp t/test.db /tmp/amber_nginx_test_links_10.db");
+system("echo \"insert into amber_cache values('XYZ', 'http://dog.com', 'cache/XYZ', 99, 'text/html', 100);\" | sqlite3 /tmp/amber_nginx_test_links_10.db");
+system("echo \"insert into amber_check values('XYZ', 'http://dog.com', 1, 100000, 200000, '');\" | sqlite3 /tmp/amber_nginx_test_links_10.db");
+--- config
+location /foo {
+	amber on;
+	amber_db /tmp/amber_nginx_test_links_10.db;
+	amber_behavior_up popup;
+
+	subs_filter '</head>' '<script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head>';
+}
+--- user_files
+>>> foo/foo.html
+<html><head><title>Doghouse</title></head><body>
+Welcome to the <a data-foo='bar' href="http://dog.com">doghouse</a>
+</body></html>
+--- request
+GET /foo/foo.html
+--- response_body
+<html><head><title>Doghouse</title><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head><body>
+Welcome to the <a data-foo='bar' data-versionurl='http://localhost:1984/cache/XYZ' data-versiondate='1970-01-01T00:01:39+0000' data-amber-behavior='up popup' href="http://dog.com">doghouse</a>
 </body></html>
 --- no_error_log
 AMBER error

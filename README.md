@@ -157,4 +157,3 @@ For improved security, you may want to have cached content served from a separat
 ## Configuration - Caching script ##
 
 The caching process is configured through ```amber.ini``` - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/amber_common/blob/master/src/amber-nginx.ini) 
-
