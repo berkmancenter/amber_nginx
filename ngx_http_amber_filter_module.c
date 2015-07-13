@@ -430,8 +430,8 @@ ngx_http_amber_get_url_lookup(ngx_http_request_t *r, sqlite3 *sqlite_handle) {
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         sqlite3_close(sqlite_handle);
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "AMBER error creating sqlite prepared statement (%d)", sqlite_rc);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+               "AMBER error creating sqlite prepared statement (%d). Make sure amber_db option is set.", sqlite_rc);
         return NULL;
     }
     return sqlite_statement;
@@ -445,8 +445,8 @@ ngx_http_amber_get_content_type_date_lookup(ngx_http_request_t *r, sqlite3 *sqli
     ngx_int_t sqlite_rc = sqlite3_prepare_v2(sqlite_handle, query_template, -1, &sqlite_statement, &query_tail);
     if (sqlite_rc != SQLITE_OK) {
         sqlite3_close(sqlite_handle);
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-               "AMBER error creating sqlite prepared statement (%d)", sqlite_rc);
+        ngx_log_error(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+               "AMBER error creating sqlite prepared statement (%d). Make sure amber_db option is set.", sqlite_rc);
         return NULL;
     }
     return sqlite_statement;
@@ -1040,7 +1040,7 @@ ngx_http_amber_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     }
 
     ngx_conf_merge_off_value(conf->enabled,              prev->enabled,1);
-    ngx_conf_merge_str_value(conf->db,                   prev->db,"amber.db");
+    ngx_conf_merge_str_value(conf->db,                   prev->db,"");
     ngx_conf_merge_str_value(conf->behavior_up,          prev->behavior_up,"none");
     ngx_conf_merge_str_value(conf->behavior_down,        prev->behavior_down,"popup");
     ngx_conf_merge_uint_value(conf->hover_delay_up,      prev->hover_delay_up,5);
