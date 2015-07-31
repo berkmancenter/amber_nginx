@@ -65,13 +65,9 @@ Create amber directories and install supporting files
     sudo cp $BUILDDIR/amber_nginx/amber.conf $NGINXCONFDIR/conf
     sudo cp $BUILDDIR/amber_nginx/amber-cache.conf $NGINXCONFDIR/conf
 
-Create amber database and cron jobs
+Create amber database
 
     sudo sqlite3 $DATADIR/amber/amber.db < ../amber_common/src/amber.sql
-    sudo cat > /etc/cron.d/amber << EOF
-    */5 * * * * $WEBROLE /bin/sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-cache.sh --ini=$BUILDDIR/amber_common/src/amber-nginx.ini 2>> $LOGDIR/amber >> $LOGDIR/amber
-    15 3 * * *  $WEBROLE /bin/sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-check.sh --ini=$BUILDDIR/amber_common/src/amber-nginx.ini 2>> $LOGDIR/amber >> $LOGDIR/amber
-    EOF
 
 Update permissions
 
@@ -80,8 +76,20 @@ Update permissions
     sudo chmod +x $BUILDDIR/amber_common/deploy/nginxg/vagrant/cron-cache.sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-check.sh
     sudo chown $WEBROLE $LOGDIR/amber
     sudo chgrp $WEBROLE $LOGDIR/amber
+    
+Test that amber cron scripts run without failure
 
-Edit nginx.conf to enable amber. Edit the root location directive to include amber.conf and amber-cache.conf
+    sudo -u $WEBROLE $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-cache.sh
+    sudo -u $WEBROLE $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-check.sh
+
+Create Amber cron jobs
+
+    sudo cat > /etc/cron.d/amber << EOF
+    */5 * * * * $WEBROLE /bin/sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-cache.sh --ini=$BUILDDIR/amber_common/src/amber-nginx.ini 2>> $LOGDIR/amber >> $LOGDIR/amber
+    15 3 * * *  $WEBROLE /bin/sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-check.sh --ini=$BUILDDIR/amber_common/src/amber-nginx.ini 2>> $LOGDIR/amber >> $LOGDIR/amber
+    EOF
+
+Edit nginx.conf to enable Amber. Edit the root location directive to include amber.conf and amber-cache.conf
 
     location / {
         [...]
@@ -141,7 +149,7 @@ Display Farsi version of Javascript and CSS
 
     subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';
 
-## Configuration - Sandboxing ##
+## Security configuration ##
 
 For improved security, you must next configure Amber to serve cached content from a separate domain. We recommend that you establish a subdomain for this purpose.
 
@@ -166,6 +174,11 @@ Here is a sample configuration where the site is running at www.amber.com, while
             }
         }
     }
+    
+## Optional configuration ##
+Display Farsi version of Javascript and CSS
+
+    `subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript"     src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';`
 
 ## Configuration - Caching script ##
 
