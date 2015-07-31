@@ -145,9 +145,21 @@ Insert Javascript and CSS required for Amber to function. `Required`
 
     subs_filter '</head>' '<script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head>';
 
-Display Farsi version of Javascript and CSS 
+Display Javascript and CSS in Farsi
 
     subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';
+
+Allow access to the Amber Admin page to multiple users
+
+    Coming soon!
+
+Create user agent name custom to your domain
+
+    Coming soon!
+
+Modify cron processes (keep caches as-is, or update regularly in "live mirror" format)
+
+    Coming soon!
 
 ## Security configuration ##
 
