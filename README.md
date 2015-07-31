@@ -32,7 +32,7 @@ This documentation contains the following representations:
 * **$LOGDIR** -We represent the log directory as $LOGDIR. (For example, in our install our log directory was /var/log)
 * **$WEBROLE** -We run all services (nginx, FastCGI, database file owner, & cron), as a single user. We represent this user as $WEBROLE. (For example, in our install our web role user was www-data)
 
-Note that the Amber module reserves the /amber top-level directory. If you already have a top-level directory called Amber, you must modify the instructions.
+Note that the Amber module reserves the /amber top-level directory. If you already have a top-level directory called Amber, you must modify the instructions. (This refers to the top level directory from the perspective of the web server URLs, *not* the top level directory on the server.)
 
 ### Install procedure ###
 
@@ -144,10 +144,6 @@ Specify additional content mime-types to be processed by Amber (default is text/
 Insert Javascript and CSS required for Amber to function. `Required`
 
     subs_filter '</head>' '<script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"></head>';
-
-Display Javascript and CSS in Farsi
-
-    subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript" src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';
 
 Allow access to the Amber Admin page to multiple users
 
