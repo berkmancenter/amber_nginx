@@ -186,13 +186,13 @@ Here is a sample configuration where the site is running at www.amber.com, while
             }
         }
     }
-    
-## Optional configuration ##
-Display Farsi version of Javascript and CSS
 
-    `subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript"     src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';`
 
 ## Configuration - Caching script ##
 
 The caching process is configured through ```amber.ini``` - full documentation is available within the sample configuration file [here](https://github.com/berkmancenter/amber_common/blob/master/src/amber-nginx.ini) 
 
+## Optional configuration ##
+Display Farsi version of Javascript and CSS
+
+    `subs_filter '</head>' '<script type="text/javascript">var amber_locale="fa";</script><script type="text/javascript"     src="/amber/js/amber.js"></script><link rel="stylesheet" type="text/css" href="/amber/css/amber.css"><link rel="stylesheet" type="text/css" href="/amber/css/amber_fa.css"></head>';`
