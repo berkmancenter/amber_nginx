@@ -10,6 +10,7 @@ Indicate your interest by contacting amber@cyber.law.harvard.edu.
 
 ## System Requirements ##
 
+* git
 * sqlite3
 * PHP 5.3 or higher
 * cURL
@@ -22,7 +23,18 @@ The Amber module consists of two components:
 * An **Nginx module** that identifies pages to be cached, schedules them for caching, and links to cached pages
 * A **caching script** that runs periodically to cache new pages and check on the status of existing pages
 
+#### Representations ####
+This documentation contains the following representations:
+* **$WEBROOT** - We represent where the root of your homepage is as $WEBROOT. (For example, in our install our webroot was /usr/local/nginx/html)
+* **$NGINXCONFDIR** -We also represent the Nginx configuration directory as $NGINXCONFDIR. (For example, in our install our Nginx configuration directory was /usr/local/nginx)
+* **$BUILDDIR** -We represent the build directory as $BUILDDIR. (For example, in our install our build directory was /usr/local/src)
+* **$DATADIR** -We represent the data directory as $DATADIR. (For example, in our install our data directory was /var/lib)
+* **$LOGDIR** -We represent the log directory as $LOGDIR. (For example, in our install our log directory was /var/log)
+* **$WEBROLE** -We run all services (nginx, FastCGI, database file owner, & cron), as a single user. We represent this user as $WEBROLE. (For example, in our install our web role user was www-data)
 
+Note that the Amber module reserves the /amber top-level directory. If you already have a top-level directory called Amber, you must modify the instructions.
+
+### Install procedure ###
 
 Install prerequisites
 
@@ -31,7 +43,7 @@ Install prerequisites
 
 Get code
     
-    cd /usr/local/src
+    cd $BUILDDIR
     sudo git clone https://github.com/berkmancenter/amber_common.git
     sudo git clone https://github.com/berkmancenter/amber_nginx.git
     sudo git clone https://github.com/yaoweibin/ngx_http_substitutions_filter_module
@@ -46,29 +58,28 @@ Build nginx
 
 Create amber directories and install supporting files
 
-    sudo mkdir /var/lib/amber /usr/local/nginx/html/amber /usr/local/nginx/html/amber/cache
-    sudo touch /var/log/amber
-    sudo ln -s /usr/local/src/amber_common/src/admin /usr/local/nginx/html/amber/admin
-    sudo cp -r /usr/local/src/amber_common/src/css /usr/local/src/amber_common/src/js /usr/local/nginx/html/amber
-    sudo cp /usr/local/src/amber_nginx/amber.conf /usr/local/nginx/conf
-    sudo cp /usr/local/src/amber_nginx/amber-cache.conf /usr/local/nginx/conf
-
+    sudo mkdir $DATADIR/amber $WEBROOT/amber $WEBROOT/amber/cache
+    sudo touch $LOGDIR/amber
+    sudo ln -s $BUILDDIR/amber_common/src/admin $WEBROOT/amber/admin
+    sudo cp -r $BUILDDIR/amber_common/src/css $BUILDDIR/amber_common/src/js $WEBROOT/amber
+    sudo cp $BUILDDIR/amber_nginx/amber.conf $NGINXCONFDIR/conf
+    sudo cp $BUILDDIR/amber_nginx/amber-cache.conf $NGINXCONFDIR/conf
 
 Create amber database and cron jobs
 
-    sudo sqlite3 /var/lib/amber/amber.db < ../amber_common/src/amber.sql
+    sudo sqlite3 $DATADIR/amber/amber.db < ../amber_common/src/amber.sql
     sudo cat > /etc/cron.d/amber << EOF
-    */5 * * * * www-data /bin/sh /usr/local/src/amber_common/deploy/nginx/vagrant/cron-cache.sh --ini=/usr/local/src/amber_common/src/amber-nginx.ini 2>> /var/log/amber >> /var/log/amber
-    15 3 * * *  www-data /bin/sh /usr/local/src/amber_common/deploy/nginx/vagrant/cron-check.sh --ini=/usr/local/src/amber_common/src/amber-nginx.ini 2>> /var/log/amber >> /var/log/amber
+    */5 * * * * $WEBROLE /bin/sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-cache.sh --ini=$BUILDDIR/amber_common/src/amber-nginx.ini 2>> $LOGDIR/amber >> $LOGDIR/amber
+    15 3 * * *  $WEBROLE /bin/sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-check.sh --ini=$BUILDDIR/amber_common/src/amber-nginx.ini 2>> $LOGDIR/amber >> $LOGDIR/amber
     EOF
 
 Update permissions
 
-    sudo chgrp -R www-data /var/lib/amber /usr/local/nginx/html/amber
-    sudo chmod -R g+w /var/lib/amber /usr/local/nginx/html/amber/cache
-    sudo chmod +x /usr/local/src/amber_common/deploy/nginxg/vagrant/cron-cache.sh /usr/local/src/amber_common/deploy/nginx/vagrant/cron-check.sh
-    sudo chown www-data /var/log/amber
-    sudo chgrp www-data /var/log/amber
+    sudo chgrp -R $WEBROLE $DATADIR/amber $WEBROOT/amber
+    sudo chmod -R g+w $DATADIR/amber $WEBROOT/amber/cache
+    sudo chmod +x $BUILDDIR/amber_common/deploy/nginxg/vagrant/cron-cache.sh $BUILDDIR/amber_common/deploy/nginx/vagrant/cron-check.sh
+    sudo chown $WEBROLE $LOGDIR/amber
+    sudo chgrp $WEBROLE $LOGDIR/amber
 
 Edit nginx.conf to enable amber. Edit the root location directive to include amber.conf and amber-cache.conf
 
@@ -80,7 +91,7 @@ Edit nginx.conf to enable amber. Edit the root location directive to include amb
 
 Start nginx
 
-    sudo /usr/local/nginx/sbin/nginx
+    sudo $NGINXCONFDIR/sbin/nginx
 
 ## Configuration - Nginx module ##
 
